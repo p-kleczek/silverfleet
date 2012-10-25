@@ -3,86 +3,85 @@ package sfmainframe.ship;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import sfmainframe.Commons;
+import sfmainframe.Reusable;
 
 public class CannonSection {
 
-    private int[][][] cannon = new int[GunCompartment.getSize()][Gun.getSize()][2]; // c[][][ready/used]
+    private final Map<GunCompartment, Reusable<Gun>> cannons;
 
 
     public CannonSection() {
+        cannons = new HashMap<GunCompartment, Reusable<Gun>>();
         clear();
     }
 
 
     public CannonSection(CannonSection cannonSection) {
+        cannons = new HashMap<GunCompartment, Reusable<Gun>>();
         for (Gun type : Gun.getValues()) {
             for (GunCompartment location : GunCompartment.getValues()) {
-                cannon[location.ordinal()][type.ordinal()][Commons.READY] = cannonSection.cannon[location.ordinal()][type
-                        .ordinal()][Commons.READY];
-                cannon[location.ordinal()][type.ordinal()][Commons.USED] = cannonSection.cannon[location.ordinal()][type
-                        .ordinal()][Commons.USED];
+                cannons.get(location).setReady(type, cannonSection.cannons.get(location).getReady(type));
+                cannons.get(location).setUsed(type, cannonSection.cannons.get(location).getUsed(type));
             }
         }
     }
 
 
     public CannonSection(ShipClass shipClass) {
+        cannons = new HashMap<GunCompartment, Reusable<Gun>>();
         for (Gun type : Gun.getValues()) {
             for (GunCompartment location : GunCompartment.getValues()) {
-                cannon[location.ordinal()][type.ordinal()][Commons.READY] = shipClass.getCannonMax()[location.ordinal()][type
-                        .ordinal()];
+                cannons.get(location).setReady(type, shipClass.getCannonMax()[location.ordinal()][type.ordinal()]);
             }
         }
     }
 
 
     public void clear() {
-        for (Gun type : Gun.getValues()) {
-            for (GunCompartment location : GunCompartment.getValues()) {
-                cannon[location.ordinal()][type.ordinal()][Commons.READY] = 0;
-                cannon[location.ordinal()][type.ordinal()][Commons.USED] = 0;
-            }
-        }
+        for (Gun type : Gun.getValues())
+            for (GunCompartment location : GunCompartment.getValues())
+                cannons.get(location).clear(type);
     }
 
 
     public void useCannon(GunCompartment compartment, Gun gunType) {
-        cannon[compartment.ordinal()][gunType.ordinal()][Commons.READY]--;
-        cannon[compartment.ordinal()][gunType.ordinal()][Commons.USED]++;
+        cannons.get(compartment).use(gunType, 1);
     }
 
 
     public void modifyCannonsNumber(GunCompartment location, Gun type, int number) {
-        cannon[location.ordinal()][type.ordinal()][Commons.USED] += number;
+        cannons.get(location).modifyUsed(type, number);
     }
 
 
     public int getCannonsNumber(GunCompartment location, Gun _type, int _state) {
-        if (_state == Commons.BOTH)
-            return cannon[location.ordinal()][_type.ordinal()][Commons.READY]
-                    + cannon[location.ordinal()][_type.ordinal()][Commons.USED];
-        else
-            return cannon[location.ordinal()][_type.ordinal()][_state];
+        switch (_state) {
+        case Commons.READY:
+            return cannons.get(location).getReady(_type);
+        case Commons.USED:
+            return cannons.get(location).getUsed(_type);
+        case Commons.BOTH:
+            return cannons.get(location).getTotal(_type);
+        default:
+            throw new IllegalArgumentException();
+        }
     }
 
 
     // FIXME : zwracanie struktury
     public int destroyCannon(GunCompartment location, Gun _type, int _state) throws IllegalArgumentException {
         if (_state == Commons.READY || _state == Commons.BOTH) {
-            if (cannon[location.ordinal()][_type.ordinal()][Commons.READY] < 0)
-                throw new IllegalArgumentException();
-
-            cannon[location.ordinal()][_type.ordinal()][Commons.READY]--;
+            assert (cannons.get(location).getReady(_type) > 0);
+            cannons.get(location).modifyReady(_type, -1);
             return Commons.READY;
         }
 
-        // Commons.USED
-        if (cannon[location.ordinal()][_type.ordinal()][Commons.USED] < 0)
-            throw new IllegalArgumentException();
-
-        cannon[location.ordinal()][_type.ordinal()][Commons.USED]--;
+        assert (cannons.get(location).getUsed(_type) > 0);
+        cannons.get(location).modifyUsed(_type, -1);
         return Commons.USED;
     }
 
@@ -97,27 +96,25 @@ public class CannonSection {
 
 
     public void prepareForNewTurn() {
-        for (Gun type : Gun.getValues()) {
-            for (GunCompartment location : GunCompartment.getValues()) {
-                cannon[location.ordinal()][type.ordinal()][Commons.READY] += cannon[location.ordinal()][type.ordinal()][Commons.USED];
-                cannon[location.ordinal()][type.ordinal()][Commons.USED] = 0;
-            }
-        }
+        for (GunCompartment location : GunCompartment.getValues())
+            cannons.get(location).refresh();
     }
 
 
     public void writeToStream(DataOutputStream dos) throws IOException {
-        for (int i = 0; i < GunCompartment.getSize(); i++)
-            for (int j = 0; j < Gun.getSize(); j++)
-                for (int k = 0; k < 2; k++)
-                    dos.writeInt(cannon[i][j][k]);
+        for (GunCompartment gc : GunCompartment.getValues())
+            for (Gun g : Gun.values()) {
+                dos.writeInt(cannons.get(gc).getReady(g));
+                dos.writeInt(cannons.get(gc).getUsed(g));
+            }
     }
 
 
     public void readFromStream(DataInputStream dis) throws IOException {
-        for (int i = 0; i < GunCompartment.getSize(); i++)
-            for (int j = 0; j < Gun.getSize(); j++)
-                for (int k = 0; k < 2; k++)
-                    cannon[i][j][k] = dis.readInt();
+        for (GunCompartment gc : GunCompartment.getValues())
+            for (Gun g : Gun.values()) {
+                cannons.get(gc).setReady(g, dis.readInt());
+                cannons.get(gc).setUsed(g, dis.readInt());
+            }
     }
 }
