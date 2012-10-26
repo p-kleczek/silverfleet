@@ -5,7 +5,6 @@ public abstract class Commons {
 	public static final int NULL = 0;
 	public static final int NIL = -2;
 	public static final int OK = 9999;
-	public static final int INF = 0xFFFF;
 
 	// OGOLNE
 	public static final int READY = 0;

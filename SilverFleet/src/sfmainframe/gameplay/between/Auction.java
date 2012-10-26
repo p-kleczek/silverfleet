@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import sfmainframe.Player;
+import sfmainframe.ship.Ship;
 import sfmainframe.ship.ShipClass;
 
 public class Auction {
@@ -20,11 +21,11 @@ public class Auction {
     private final Map<Player, Integer> offers;
 
 
-    public Auction(int auctionID, int startTurnID, Integer shipID, ShipClass shipClass, int startingPrice) {
+    public Auction(int auctionID, int startTurnID, Ship ship, ShipClass shipClass, int startingPrice) {
         this.auctionID = auctionID;
         this.startTurnID = startTurnID;
 
-        offeredShipID = shipID;
+        offeredShipID = ship.getID();
         offeredShipClass = shipClass;
 
         offers = new HashMap<Player, Integer>();
@@ -100,7 +101,9 @@ public class Auction {
 
         int startingPrice = data_input.readInt();
 
-        Auction a = new Auction(auctionID, startTurnID, offeredShipID, offeredShipClass, startingPrice);
+        // FIXME: generowanie na podstawie ID
+//        Auction a = new Auction(auctionID, startTurnID, offeredShipID, offeredShipClass, startingPrice);
+        Auction a = null;
         for (Player p : Player.getValues())
             a.setOffer(p, offers.get(p));
         return a;

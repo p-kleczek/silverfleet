@@ -3,16 +3,18 @@ package sfmainframe.ship;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.Vector;
 
 import sfmainframe.Commons;
 import sfmainframe.Coordinate;
 import sfmainframe.MainBoard;
 import sfmainframe.Player;
+import sfmainframe.Range;
+import sfmainframe.ReusableElement;
 import sfmainframe.board.RotateDirection;
 import sfmainframe.gameplay.KillingMode;
 import sfmainframe.gameplay.MovementType;
@@ -25,135 +27,221 @@ import sfmainframe.ship.marines.MarinesCompartment;
 
 public class Ship {
 
-    public static final int PREVIOUS_OWNER = -1;
+    /**
+     * ID of the ship in the game. Used for player convenience only.
+     * <p>
+     * Numbering starts with 1.
+     */
+    private final int id;
 
-    private Integer shipID; // ID w grze
-    private Player owner; // ID wlasciciela
-    private Player firstOwner; // ID wlasciciela na poczatku rozgrywki
-    private ShipClass shipClass; // typ okretu
-    private Player internedBy; // ID gracza internujacego okret
+    /**
+     * Type (class) of the ship.
+     */
+    private final ShipClass shipClass;
 
+    /**
+     * Current owner of the ship (or <code>NONE</code> if no owner).
+     */
+    private Player owner;
+
+    /**
+     * Owner at the beginning of a current gameplay.
+     */
+    private Player initialOwner;
+
+    /**
+     * Player who interned this ship.
+     */
+    private Player internedBy;
+
+    /**
+     * Current position on the board.
+     */
     private Coordinate position;
+
+    /**
+     * Rotation on the board.
+     */
     private RotateDirection rotation;
 
-    /** Code of the current ship's movement phase (eg. move, rotate etc.) */
+    /**
+     * Code of the current ship's movement phase (eg. move, rotate etc.)
+     */
     private MovesQueueCode movesQueueCode;
-    private int actionsOver;
 
+    /**
+     * TODO: co to robi?
+     */
+    private boolean actionsOver;
+
+    /**
+     * Ship's durability.
+     */
     private int durability;
+
+    /**
+     * Number of points of happiness.
+     */
     private int happiness;
 
-    private int[] helm = new int[2];
+    /**
+     * Helm points.
+     */
+    private ReusableElement helm;
+
+    /**
+     * Number of mast points.
+     */
     private int mast;
 
+    /**
+     * Distance moved (in hexes) so far in the current turn.
+     */
     private int distanceMoved;
 
-    private Map<CargoType, Integer> load;
+    /**
+     * Cargo hold.
+     */
+    private final CargoHold cargoHold;
 
+    /**
+     * Cannon section.
+     */
     private CannonSection cannonSection;
+
+    /**
+     * Marines section.
+     */
     private MarinesSection marinesSection;
 
-    private BoardingFirstTurn boardingFirstTurn;
-    private int[][] boardingActionUsed = new int[MarinesCompartment.getShipCompartments().length][Commons.PLAYERS_MAX];
+    private BoardingFirstTurn boardingFirstTurn; // XXX: wtf?
 
-    private Map<Parameter, Integer> parameters;
+    /**
+     * Boarding actions used in TODO
+     */
+    private Map<MarinesCompartment, Map<Player, Integer>> boardingActionUsed;
 
+    private final EnumSet<Parameter> parameters;
+//    private final Map<Parameter, Integer> parameters;
+
+    /**
+     * Flag indicating whether sails are ripped.
+     */
     private boolean sailesRipped;
-    private Map<Player, Integer> marinesOnBoardWhileSailesRipped;
 
-    private Integer towedByID; // ID okretu holujacego
-    private Integer towOtherID; // ID okretu holowanego
+    /**
+     * Number of marines on board when sails were ripped.
+     */
+    private final Map<Player, Integer> marinesOnBoardWhileSailesRipped;
 
-    private boolean turnEscapeAttemptUsed; // czy w danej turze zostala juz
-                                           // podjeta proba zejscia z mielizny
-    Set<ShallowAttempt> escapeAttemptsUsed;
-    // zejscia
-    // podjete
-    // podczas
-    // danego
-    // ugrzezniecia
-    private boolean pullOnAnchorAttemptCarried; // flaga informujaca, czy w
-                                                // poprzedniej turze podjeto
-                                                // probe podciagniecia sie na
-                                                // kotwicy
-    private boolean towByOneAttemptCarried; // flaga informujaca, czy w
-                                            // poprzedniej turze zalozono hol na
-                                            // unieruchomiony okret
-    private Coordinate previousTurnPosition; // polozenie koncowe statku w
-                                             // poprzedniej turze
+    /**
+     * Ship which is a tug for this ship.
+     */
+    private Ship towedBy;
 
-    Vector<Integer> shipsCoupled;// ID okretow sczepionych (przeladunek/abordaz)
-    Vector<CoupleReason> coupledReasons;
+    /**
+     * Ship which is towed by this ship.
+     */
+    private Ship towOther;
 
-    private boolean happinessSunk; // okret podczas rozgrywki zatopil okret
-                                   // przeciwnika
-    private boolean happinessBoarding; // zaloga okretu podczas rozgrywki
-                                       // zdobyla okret przeciwnika
-    private boolean happinessCapture; // okret przyspozyl flocie nowy okret
-                                      // (tylko przez internowanie)
+    /**
+     * Flag indicating whether a shallow escape attempt has already been made in
+     * the current turn.
+     */
+    private boolean turnEscapeAttemptUsed;
+
+    /**
+     * Escape attempt used during the current stuck.
+     */
+    private final Set<ShallowAttempt> escapeAttemptsUsed;
+
+    /**
+     * Flag indicating whether there was a "pull on anchor" escape attempt made
+     * in the previous turn.
+     */
+    private boolean pullOnAnchorAttemptCarried;
+
+    /**
+     * Flag indicating whether there was a "towed by one" escape attempt made in
+     * the previous turn.
+     */
+    private boolean towedByOneAttemptCarried;
+
+    /**
+     * Position of the ship in the previous turn.
+     */
+    private Coordinate previousTurnPosition;
+
+    /**
+     * Map of coupled ships and reasons they are coupled.
+     */
+    private final Map<Ship, CoupleReason> shipsCoupled;
+
+    private final Set<Happiness> gainedHappiness;
 
 
-    public Ship() {
-        shipID = null;
-        owner = Player.NONE;
-        firstOwner = Player.NONE;
-        shipClass = ShipClass.NONE;
+    public Ship(Player _owner, ShipClass _class, int _ID) {
+        id = _ID;
+        owner = _owner;
+        initialOwner = _owner;
+        shipClass = _class;
         internedBy = Player.NONE;
 
         position = Coordinate.dummy;
         rotation = RotateDirection.N;
         movesQueueCode = MovesQueueCode.NEW;
-        actionsOver = Commons.OFF;
+        actionsOver = Boolean.FALSE;
 
-        durability = 0;
+        durability = _class.getDurabilityMax();
         happiness = 0;
 
-        helm[Commons.READY] = 0;
-        helm[Commons.USED] = 0;
-        mast = 0;
+        helm = new ReusableElement();
+        helm.setReady(_class.getHelmMax());
+        mast = _class.getMastMax();
         distanceMoved = 0;
 
-        cannonSection = new CannonSection();
-        marinesSection = new MarinesSection();
+        cannonSection = new CannonSection(_class);
+        marinesSection = new MarinesSection(_class, owner);
 
-        load = new HashMap<CargoType, Integer>();
-        for (CargoType t : CargoType.values())
-            load.put(t, 0);
+        boardingActionUsed = new HashMap<MarinesCompartment, Map<Player, Integer>>();
+        for (MarinesCompartment mc : MarinesCompartment.getShipCompartments()) {
+            boardingActionUsed.put(mc, new HashMap<Player, Integer>());
+            for (Player p : Player.getValues())
+                boardingActionUsed.get(mc).put(p, 0);
+        }
+
+        cargoHold = new CargoHold(_class.getLoadMax());
 
         boardingFirstTurn = BoardingFirstTurn.NOT_APPLICABLE;
 
         parameters = new HashMap<Parameter, Integer>();
         for (Parameter parameter : Parameter.values())
             parameters.put(parameter, Commons.OFF);
-        parameters.put(Parameter.IS_SUNK, Commons.ON);
 
         sailesRipped = false;
         marinesOnBoardWhileSailesRipped = new HashMap<Player, Integer>();
         for (Player p : Player.getValues())
             marinesOnBoardWhileSailesRipped.put(p, 0);
 
-        towedByID = null;
-        towOtherID = null;
+        towedBy = null;
+        towOther = null;
 
         turnEscapeAttemptUsed = false;
         escapeAttemptsUsed = new HashSet<ShallowAttempt>();
         pullOnAnchorAttemptCarried = false;
-        towByOneAttemptCarried = false;
+        towedByOneAttemptCarried = false;
         previousTurnPosition = new Coordinate(Commons.NIL, Commons.NIL);
 
-        shipsCoupled = new Vector<Integer>();
-        coupledReasons = new Vector<CoupleReason>();
+        shipsCoupled = new HashMap<Ship, CoupleReason>();
 
-        happinessSunk = false;
-        happinessBoarding = false;
-        happinessCapture = false;
+        gainedHappiness = EnumSet.noneOf(Happiness.class);
     }
 
 
     public Ship(Ship ship) {
-        shipID = ship.shipID;
+        id = ship.id;
         owner = ship.owner;
-        firstOwner = ship.firstOwner;
+        initialOwner = ship.initialOwner;
         shipClass = ship.shipClass;
         internedBy = ship.internedBy;
 
@@ -165,15 +253,14 @@ public class Ship {
         durability = ship.durability;
         happiness = ship.happiness;
 
-        helm[Commons.READY] = ship.helm[Commons.READY];
-        helm[Commons.USED] = ship.helm[Commons.USED];
+        helm.copy(ship.helm);
         mast = ship.mast;
         distanceMoved = ship.distanceMoved;
 
         cannonSection = new CannonSection(ship.cannonSection);
         marinesSection = new MarinesSection(ship.marinesSection);
 
-        load = new HashMap<CargoType, Integer>(ship.load);
+        cargoHold = new CargoHold(ship.cargoHold);
 
         boardingFirstTurn = ship.boardingFirstTurn;
 
@@ -182,46 +269,110 @@ public class Ship {
         sailesRipped = ship.sailesRipped;
         marinesOnBoardWhileSailesRipped = new HashMap<Player, Integer>(ship.marinesOnBoardWhileSailesRipped);
 
-        towedByID = ship.towedByID;
-        towOtherID = ship.towOtherID;
+        towedBy = ship.towedBy;
+        towOther = ship.towOther;
 
         turnEscapeAttemptUsed = ship.turnEscapeAttemptUsed;
         escapeAttemptsUsed = new HashSet<ShallowAttempt>(ship.escapeAttemptsUsed);
         pullOnAnchorAttemptCarried = ship.pullOnAnchorAttemptCarried;
-        towByOneAttemptCarried = ship.towByOneAttemptCarried;
+        towedByOneAttemptCarried = ship.towedByOneAttemptCarried;
         previousTurnPosition = ship.previousTurnPosition;
 
-        shipsCoupled = ship.shipsCoupled;
-        coupledReasons = ship.coupledReasons;
+        shipsCoupled = new HashMap<Ship, CoupleReason>(ship.shipsCoupled);
 
-        happinessSunk = ship.happinessSunk;
-        happinessBoarding = ship.happinessBoarding;
-        happinessCapture = ship.happinessCapture;
+        gainedHappiness = EnumSet.copyOf(ship.gainedHappiness);
     }
 
 
-    public void setShip(Player _owner, ShipClass _class, int _ID) {
-        shipID = _ID;
-        owner = _owner;
-        firstOwner = _owner;
-        shipClass = _class;
+    public Ship(DataInputStream data_input) throws IOException {
+        int dummy = 0;
+        int counter = 0;
 
-        durability = _class.getDurabilityMax();
+        id = data_input.readInt();
+        owner = Player.valueOf(data_input.readInt());
+        initialOwner = Player.valueOf(data_input.readInt());
 
-        helm[Commons.READY] = _class.getHelmMax();
-        mast = _class.getMastMax();
+        shipClass = ShipClass.valueOf(data_input.readInt());
 
-        parameters.put(Parameter.IS_SUNK, Commons.OFF);
+        internedBy = Player.valueOf(data_input.readInt());
 
-        cannonSection = new CannonSection(_class);
-        marinesSection = new MarinesSection(_class, owner);
+        dummy = data_input.readInt();
+        position.set(dummy, data_input.readInt());
 
-        load.put(CargoType.FREE_SPACE, _class.getLoadMax());
+        rotation = RotateDirection.valueOf(data_input.readInt());
+
+        movesQueueCode = MovesQueueCode.valueOf(data_input.readInt());
+        actionsOver = data_input.readBoolean();
+        distanceMoved = data_input.readInt();
+
+        durability = data_input.readInt();
+        happiness = data_input.readInt();
+
+        helm = new ReusableElement();
+        helm.setReady(data_input.readInt());
+        helm.setUsed(data_input.readInt());
+        mast = data_input.readInt();
+
+        cannonSection.readFromStream(data_input);
+        marinesSection.readFromStream(data_input);
+        cargoHold = new CargoHold(shipClass.getLoadMax());
+        cargoHold.readFromFile(data_input);
+
+        boardingFirstTurn = BoardingFirstTurn.valueOf(data_input.readInt());
+
+        boardingActionUsed = new HashMap<MarinesCompartment, Map<Player, Integer>>();
+        for (MarinesCompartment mc : MarinesCompartment.getShipCompartments()) {
+            boardingActionUsed.put(mc, new HashMap<Player, Integer>());
+            for (Player p : Player.getValues())
+                boardingActionUsed.get(mc).put(p, data_input.readInt());
+        }
+
+        parameters = new HashMap<Parameter, Integer>();
+        for (Parameter p : Parameter.values())
+            parameters.put(p, data_input.readInt());
+
+        sailesRipped = data_input.readBoolean();
+
+        marinesOnBoardWhileSailesRipped = new HashMap<Player, Integer>();
+        for (Player p : Player.getValues())
+            marinesOnBoardWhileSailesRipped.put(p, data_input.readInt());
+
+        // FIXME: ładowanie danego statku na podstawie ID -> konieczne w
+        // osobnej funkcji, po załadowaniu statków
+        // towedBy = data_input.readInt();
+        // towOther = data_input.readInt();
+
+        turnEscapeAttemptUsed = data_input.readBoolean();
+        escapeAttemptsUsed = new HashSet<ShallowAttempt>();
+        dummy = data_input.readInt();
+        for (int i = 0; i < dummy; i++)
+            escapeAttemptsUsed.add(ShallowAttempt.valueOf(data_input.readUTF()));
+        pullOnAnchorAttemptCarried = data_input.readBoolean();
+        towedByOneAttemptCarried = data_input.readBoolean();
+
+        dummy = data_input.readInt();
+        previousTurnPosition.set(dummy, data_input.readInt());
+
+        shipsCoupled = new HashMap<Ship, CoupleReason>();
+        counter = data_input.readInt();
+        for (int i = 0; i < counter; i++) {
+            // FIXME: ładowanie danego statku na podstawie ID -> konieczne w
+            // osobnej funkcji, po załadowaniu statków
+            Ship ship = null;// .add(data_input.readInt());
+            CoupleReason reason = CoupleReason.valueOf(data_input.readUTF());
+
+            shipsCoupled.put(ship, reason);
+        }
+
+        gainedHappiness = EnumSet.noneOf(Happiness.class);
+        for (Happiness h : Happiness.values())
+            if (data_input.readBoolean())
+                gainedHappiness.add(h);
     }
 
 
     public Integer getID() {
-        return shipID;
+        return id;
     }
 
 
@@ -236,12 +387,12 @@ public class Ship {
 
 
     public Player getFirstOwner() {
-        return firstOwner;
+        return initialOwner;
     }
 
 
     public void setFirstOwner(Player player) {
-        firstOwner = player;
+        initialOwner = player;
     }
 
 
@@ -260,13 +411,13 @@ public class Ship {
     }
 
 
-    public int isActionsOver() {
+    public Boolean isActionsOver() {
         return actionsOver;
     }
 
 
-    public void setActionsOver(int state) {
-        actionsOver = state;
+    public void setActionsOver() {
+        actionsOver = Boolean.TRUE;
     }
 
 
@@ -290,11 +441,17 @@ public class Ship {
     }
 
 
-    public int getHelm(int type) {
-        if (type == Commons.BOTH)
-            return helm[Commons.READY] + helm[Commons.USED];
-        else
-            return helm[type];
+    public int getHelm(int state) {
+        switch (state) {
+        case Commons.READY:
+            return helm.getReady();
+        case Commons.USED:
+            return helm.getUsed();
+        case Commons.BOTH:
+            return helm.getTotal();
+        default:
+            throw new IllegalArgumentException();
+        }
     }
 
 
@@ -334,12 +491,12 @@ public class Ship {
 
 
     public void setBoardingActionUsed(Player player, MarinesCompartment location, int value) {
-        boardingActionUsed[location.ordinal()][player.ordinal()] = value;
+        boardingActionUsed.get(location).put(player, value);
     }
 
 
     public int getBoardingActionUsed(Player player, MarinesCompartment location) {
-        return boardingActionUsed[location.ordinal()][player.ordinal()];
+        return boardingActionUsed.get(location).get(player);
     }
 
 
@@ -363,66 +520,38 @@ public class Ship {
     }
 
 
-    public boolean getHappinessSunk() {
-        return happinessSunk;
+    public boolean isHappinessFlagSet(Happiness h) {
+        return gainedHappiness.contains(h);
     }
 
 
-    public void setHappinessSunk(boolean value) {
-        happinessSunk = value;
+    public void setHappinessFlag(Happiness h) {
+        gainedHappiness.add(h);
     }
 
 
-    public boolean getHappinessBoarding() {
-        return happinessBoarding;
-    }
-
-
-    public void setHappinessBoarding(boolean value) {
-        happinessBoarding = value;
-    }
-
-
-    public boolean getHappinessCapture() {
-        return happinessCapture;
-    }
-
-
-    public void setHappinessCapture(boolean value) {
-        happinessCapture = value;
-    }
-
-
-    public Vector<Integer> getShipsCoupled() {
+    public Map<Ship, CoupleReason> getShipsCoupled() {
         return shipsCoupled;
     }
 
 
-    public boolean isShipCoupled(int id) {
-        return shipsCoupled.contains(Integer.valueOf(id));
+    public boolean isShipCoupled(Ship ship) {
+        return shipsCoupled.keySet().contains(ship);
     }
 
 
-    public void addShipCoupled(int id) {
-        shipsCoupled.add(Integer.valueOf(id));
+    public void addShipCoupled(Ship ship, CoupleReason reason) {
+        shipsCoupled.put(ship, reason);
     }
 
 
-    public CoupleReason getCoupleReason(int shipID) {
-        return coupledReasons.get(shipsCoupled.indexOf(shipID));
+    public CoupleReason getCoupleReason(Ship ship) {
+        return shipsCoupled.get(ship);
     }
 
 
-    public void couple(int shipID, CoupleReason reason) {
-        shipsCoupled.add(shipID);
-        coupledReasons.add(reason);
-    }
-
-
-    public void uncouple(int shipID) {
-        int inx = shipsCoupled.indexOf(shipID);
-        shipsCoupled.remove(inx);
-        coupledReasons.remove(inx);
+    public void uncouple(Ship ship) {
+        shipsCoupled.remove(ship);
     }
 
 
@@ -443,19 +572,20 @@ public class Ship {
 
 
     public void destroyMast(int value) {
-        MainBoard.addMessage("Ship #" + shipID + ": " + Math.min(5, mast) + " speed points lost.\n");
+        MainBoard.addMessage("Ship #" + id + ": " + Math.min(5, mast) + " speed points lost.\n");
         mast = Math.max(0, mast - value);
     }
 
 
     public void destroyHelm(int value) {
-        if (value <= helm[Commons.READY])
-            helm[Commons.READY] -= value;
+        if (value <= helm.getReady())
+            helm.modifyReady(-value);
         else {
-            value -= helm[Commons.READY];
-            helm[Commons.READY] = 0;
+            value -= helm.getReady();
+            helm.setReady(0);
         }
-        helm[Commons.USED] = Math.max(0, helm[Commons.USED] - value);
+
+        helm.setUsed(Math.max(0, helm.getUsed() - value));
     }
 
 
@@ -466,7 +596,6 @@ public class Ship {
     }
 
 
-    // MARYNARZE
     public int getPlayerMarinesOnShip(Player player, boolean withCommanders) {
         int totalNumber = 0;
         for (MarinesCompartment loc : MarinesCompartment.getShipCompartments()) {
@@ -474,7 +603,7 @@ public class Ship {
             if (withCommanders)
                 if (getCommanderState(player, loc) == CommanderState.READY
                         || getCommanderState(player, loc) == CommanderState.USED)
-                    totalNumber++;
+                    totalNumber += 1;
         }
         return totalNumber;
     }
@@ -505,6 +634,7 @@ public class Ship {
     }
 
 
+    // FIXME: brzydko wygląda
     public Object[] killMarines(Player player, MarinesCompartment location, int amount, KillingMode mode) {
         return marinesSection.killMarines(player, location, amount, mode);
     }
@@ -535,7 +665,6 @@ public class Ship {
     }
 
 
-    // RUCH OKRETU
     public Coordinate getPosition() {
         return position;
     }
@@ -570,18 +699,18 @@ public class Ship {
         if (movesQueueCode == MovesQueueCode.END)
             return false;
 
-        if (movement == MovementType.TRANSFER) {
-            if (movesQueueCode == MovesQueueCode.MOVE_ROTATE || movesQueueCode == MovesQueueCode.ROTATE_MOVE_ROTATE)
-                return false;
+        switch (movement) {
+        case TRANSFER:
+            return (movesQueueCode != MovesQueueCode.MOVE_ROTATE && movesQueueCode != MovesQueueCode.ROTATE_MOVE_ROTATE);
+        case ROTATE:
             return true;
-        } else if (movement == MovementType.ROTATE)
-            return true;
-        else
-            return false; // nieoczekiwana wartość
+        default:
+            throw new IllegalArgumentException();
+        }
     }
 
 
-    public void addMovementCode(MovementType type) {
+    public void nextMovementCode(MovementType type) {
         if (type == MovementType.TRANSFER) {
             switch (movesQueueCode) {
             case NEW:
@@ -615,12 +744,10 @@ public class Ship {
 
 
     public void useHelm(int amount) {
-        helm[Commons.READY] -= amount;
-        helm[Commons.USED] += amount;
+        helm.use(amount);
     }
 
 
-    // SZTORM
     public void setSails() {
         sailesRipped = false;
         setParameter(Parameter.IS_WRECK, Commons.OFF);
@@ -629,22 +756,19 @@ public class Ship {
     }
 
 
-    // OSTRZAL
     public void shoot(Player player, GunCompartment location, Gun _type) {
         cannonSection.useCannon(location, _type);
         marinesSection.useMarines(player, MarinesCompartment.BATTERIES, _type.getCrewSize());
     }
 
 
-    // ABORDAZ
     public int escapeFromBoarding() {
         shipsCoupled.clear();
-        // TODO
+        // TODO: wtf?
         return Commons.NIL;
     }
 
 
-    // MIELIZNY
     public boolean checkEscapeAttempt(ShallowAttempt type) {
         // par. 17.6
         if (turnEscapeAttemptUsed || escapeAttemptsUsed.contains(type))
@@ -652,12 +776,12 @@ public class Ship {
         // --
 
         // Nie można przeprowadzać dwóch prób równocześnie.
-        if (pullOnAnchorAttemptCarried || towByOneAttemptCarried)
+        if (pullOnAnchorAttemptCarried || towedByOneAttemptCarried)
             return false;
 
         // par. 17.8.1
         if (type == ShallowAttempt.DROP_SILVER) {
-            if (load.get(CargoType.SILVER) == 0)
+            if (cargoHold.getLoad(CargoType.SILVER) == 0)
                 return false;
         }
         // --
@@ -685,50 +809,39 @@ public class Ship {
 
         switch (type) {
         case DROP_SILVER:
-            unloadCargo(CargoType.SILVER, Commons.INF);
+            cargoHold.unloadAll(CargoType.SILVER);
             break;
         case DROP_CANNONS:
             cannonSection.clear();
             break;
         case PULL_ANCHOR:
-            actionsOver = Commons.ON; // par. 17.10.1
+            actionsOver = Boolean.TRUE; // par. 17.10.1
             pullOnAnchorAttemptCarried = true;
             break;
         case TOW_BY_ONE:
-            towByOneAttemptCarried = true;
+            towedByOneAttemptCarried = true;
             break;
         }
     }
 
 
-    // HOLOWANIE
-    public Integer getTowedBy() {
-        return towedByID;
+    public Ship getTowedBy() {
+        return towedBy;
     }
 
 
-    public void setTowedBy(Integer ship) {
-        towedByID = ship;
+    public void setTowedBy(Ship ship) {
+        towedBy = ship;
     }
 
 
-    public void clearTowedBy() {
-        towedByID = null;
+    public Ship getTowOther() {
+        return towOther;
     }
 
 
-    public Integer getTowOther() {
-        return towOtherID;
-    }
-
-
-    public void setTowOther(Integer ship) {
-        towOtherID = ship;
-    }
-
-
-    public void clearTow() {
-        towOtherID = null;
+    public void setTowOther(Ship ship) {
+        towOther = ship;
     }
 
 
@@ -743,30 +856,22 @@ public class Ship {
 
 
     public void loadCargo(CargoType type, int amount) {
-        load.put(type, load.get(type) + amount);
-
-        if (type == CargoType.CANNONS_MEDIUM)
-            load.put(CargoType.FREE_SPACE, load.get(CargoType.FREE_SPACE) - amount * 2);
-        else
-            load.put(CargoType.FREE_SPACE, load.get(CargoType.FREE_SPACE) - amount);
+        cargoHold.load(type, amount);
     }
 
 
     public void unloadCargo(CargoType type, int amount) {
-        if (amount == Commons.INF)
-            load.put(type, 0);
-        else
-            load.put(type, load.get(type) - amount);
+        cargoHold.unload(type, amount);
+    }
 
-        if (type == CargoType.CANNONS_MEDIUM)
-            load.put(CargoType.FREE_SPACE, load.get(CargoType.FREE_SPACE) + amount * 2);
-        else
-            load.put(CargoType.FREE_SPACE, load.get(CargoType.FREE_SPACE) + amount);
+
+    public void unloadAll(CargoType type) {
+        cargoHold.unloadAll(type);
     }
 
 
     public int getLoad(CargoType type) {
-        return load.get(type);
+        return cargoHold.getLoad(type);
     }
 
 
@@ -781,19 +886,19 @@ public class Ship {
 
 
     public void setTowByOneAttemptCarried(boolean state) {
-        towByOneAttemptCarried = state;
+        towedByOneAttemptCarried = state;
     }
 
 
     public boolean isTowByOneAttemptCarried() {
-        return towByOneAttemptCarried;
+        return towedByOneAttemptCarried;
     }
 
 
     public boolean isOnGameBoard() {
-        if (position.getA() == Commons.NIL || position.getB() == Commons.NIL)
+        if (!position.isValid())
             return false;
-        if (parameters.get(Parameter.IS_OUTSIDE_MAP) == Commons.ON || parameters.get(Parameter.IS_SUNK) == Commons.ON)
+        if (!isOnGameBoard() || parameters.get(Parameter.IS_SUNK) == Commons.ON)
             return false;
 
         return true;
@@ -802,19 +907,18 @@ public class Ship {
 
     public void prepareForNewTurn() {
         movesQueueCode = MovesQueueCode.NEW;
-        actionsOver = Commons.OFF;
+        actionsOver = Boolean.FALSE;
 
-        helm[Commons.READY] += helm[Commons.USED];
-        helm[Commons.USED] = 0;
+        helm.refresh();
         distanceMoved = 0;
 
         cannonSection.prepareForNewTurn();
         // marynarze musza byc "wyzerowani" przed tura abordazowa
         marinesSection.prepareForNewTurn();
 
-        for (int i = 0; i < MarinesCompartment.getSize(); i++)
-            for (int j = 0; j < Commons.PLAYERS_MAX; j++)
-                boardingActionUsed[i][j] = 0;
+        for (MarinesCompartment mc : MarinesCompartment.getShipCompartments())
+            for (Player p : Player.getValues())
+                boardingActionUsed.get(mc).put(p, 0);
 
         previousTurnPosition = position;
         turnEscapeAttemptUsed = false;
@@ -832,7 +936,7 @@ public class Ship {
 
 
     public void repairHelm(int points) {
-        helm[Commons.READY] += points;
+        helm.modifyReady(points);
     }
 
 
@@ -851,15 +955,10 @@ public class Ship {
 
         value += (shipClass.getDurabilityMax() - durability) * RepairType.DURABILITY.getCost();
         value += (shipClass.getMastMax() - mast) * RepairType.MAST.getCost();
-        value += (shipClass.getHelmMax() - (helm[Commons.READY] + helm[Commons.USED])) * RepairType.HELM.getCost();
+        value += (shipClass.getHelmMax() - helm.getTotal()) * RepairType.HELM.getCost();
 
-        for (GunCompartment c : GunCompartment.values()) {
-            if (c == GunCompartment.NONE)
-                continue;
-            for (Gun t : Gun.values()) {
-                if (t == Gun.NONE)
-                    continue;
-
+        for (GunCompartment c : GunCompartment.getValues()) {
+            for (Gun t : Gun.getValues()) {
                 value += (shipClass.getCannonMax()[c.ordinal()][t.ordinal()] - getCannonsNumber(c, t, Commons.BOTH))
                         * t.getPrice(DealType.BUY);
             }
@@ -869,210 +968,113 @@ public class Ship {
     }
 
 
-    public void writeToFile(DataOutputStream data_output) {
-        try {
-            data_output.writeInt(shipID);
-            data_output.writeInt(owner.ordinal());
-            data_output.writeInt(firstOwner.ordinal());
-            data_output.writeInt(shipClass.ordinal());
-            data_output.writeInt(internedBy.ordinal());
+    public void writeToFile(DataOutputStream data_output) throws IOException {
+        data_output.writeInt(id);
+        data_output.writeInt(owner.ordinal());
+        data_output.writeInt(initialOwner.ordinal());
+        data_output.writeInt(shipClass.ordinal());
+        data_output.writeInt(internedBy.ordinal());
 
-            data_output.writeInt(position.getA());
-            data_output.writeInt(position.getB());
-            data_output.writeInt(rotation.ordinal());
+        data_output.writeInt(position.getA());
+        data_output.writeInt(position.getB());
+        data_output.writeInt(rotation.ordinal());
 
-            data_output.writeInt(movesQueueCode.ordinal());
-            data_output.writeInt(actionsOver);
-            data_output.writeInt(distanceMoved);
+        data_output.writeInt(movesQueueCode.ordinal());
+        data_output.writeBoolean(actionsOver);
+        data_output.writeInt(distanceMoved);
 
-            data_output.writeInt(durability);
-            data_output.writeInt(happiness);
-            data_output.writeInt(helm[Commons.READY]);
-            data_output.writeInt(helm[Commons.USED]);
-            data_output.writeInt(mast);
+        data_output.writeInt(durability);
+        data_output.writeInt(happiness);
+        data_output.writeInt(helm.getReady());
+        data_output.writeInt(helm.getUsed());
+        data_output.writeInt(mast);
 
-            cannonSection.writeToStream(data_output);
-            marinesSection.writeToStream(data_output);
+        cannonSection.writeToStream(data_output);
+        marinesSection.writeToStream(data_output);
+        cargoHold.writeToFile(data_output);
 
-            for (CargoType t : CargoType.getValues())
-                data_output.writeInt(load.get(t));
+        data_output.writeInt(boardingFirstTurn.ordinal());
 
-            data_output.writeInt(boardingFirstTurn.ordinal());
-
-            for (int i = 0; i < MarinesCompartment.getSize(); i++)
-                for (int j = 0; j < Commons.PLAYERS_MAX; j++)
-                    data_output.writeInt(boardingActionUsed[i][j]);
-
-            for (Parameter p : Parameter.values())
-                data_output.writeInt(parameters.get(p));
-
-            data_output.writeBoolean(sailesRipped);
-
+        for (MarinesCompartment mc : MarinesCompartment.getShipCompartments()) {
             for (Player p : Player.getValues())
-                data_output.writeInt(marinesOnBoardWhileSailesRipped.get(p));
-
-            data_output.writeInt(towedByID);
-            data_output.writeInt(towOtherID);
-
-            data_output.writeBoolean(turnEscapeAttemptUsed);
-            data_output.writeInt(escapeAttemptsUsed.size());
-            for (ShallowAttempt sa : escapeAttemptsUsed)
-                data_output.writeUTF(sa.name());
-            data_output.writeBoolean(pullOnAnchorAttemptCarried);
-            data_output.writeBoolean(towByOneAttemptCarried);
-            data_output.writeInt(previousTurnPosition.getA());
-            data_output.writeInt(previousTurnPosition.getB());
-
-            data_output.writeInt(shipsCoupled.size());
-            for (int i = 0; i < shipsCoupled.size(); i++) {
-                data_output.writeInt(shipsCoupled.elementAt(i));
-                data_output.writeInt(coupledReasons.elementAt(i).ordinal());
-            }
-
-            data_output.writeBoolean(happinessSunk);
-            data_output.writeBoolean(happinessBoarding);
-            data_output.writeBoolean(happinessCapture);
-        } catch (IOException e) {
-            System.out.println("IO exception = " + e);
+                data_output.writeInt(boardingActionUsed.get(mc).get(p));
         }
+
+        for (Parameter p : Parameter.values())
+            data_output.writeInt(parameters.get(p));
+
+        data_output.writeBoolean(sailesRipped);
+
+        for (Player p : Player.getValues())
+            data_output.writeInt(marinesOnBoardWhileSailesRipped.get(p));
+
+        data_output.writeInt(towedBy.getID());
+        data_output.writeInt(towOther.getID());
+
+        data_output.writeBoolean(turnEscapeAttemptUsed);
+        data_output.writeInt(escapeAttemptsUsed.size());
+        for (ShallowAttempt sa : escapeAttemptsUsed)
+            data_output.writeUTF(sa.name());
+        data_output.writeBoolean(pullOnAnchorAttemptCarried);
+        data_output.writeBoolean(towedByOneAttemptCarried);
+        data_output.writeInt(previousTurnPosition.getA());
+        data_output.writeInt(previousTurnPosition.getB());
+
+        data_output.writeInt(shipsCoupled.size());
+        for (Ship s : shipsCoupled.keySet()) {
+            data_output.writeInt(s.getID());
+            data_output.writeUTF(shipsCoupled.get(s).name());
+        }
+
+        for (Happiness h : Happiness.values())
+            data_output.writeBoolean(gainedHappiness.contains(h));
     }
 
 
-    public void readFromFile(DataInputStream data_input) {
-        int dummy = 0;
-        int counter = 0;
-
-        try {
-            shipID = data_input.readInt();
-            owner = Player.valueOf(data_input.readInt());
-            firstOwner = Player.valueOf(data_input.readInt());
-
-            shipClass = ShipClass.valueOf(data_input.readInt());
-
-            internedBy = Player.valueOf(data_input.readInt());
-
-            dummy = data_input.readInt();
-            position.set(dummy, data_input.readInt());
-
-            rotation = RotateDirection.valueOf(data_input.readInt());
-
-            movesQueueCode = MovesQueueCode.valueOf(data_input.readInt());
-            actionsOver = data_input.readInt();
-            distanceMoved = data_input.readInt();
-
-            durability = data_input.readInt();
-            happiness = data_input.readInt();
-            helm[Commons.READY] = data_input.readInt();
-            helm[Commons.USED] = data_input.readInt();
-            mast = data_input.readInt();
-
-            cannonSection.readFromStream(data_input);
-            marinesSection.readFromStream(data_input);
-
-            for (CargoType t : CargoType.getValues())
-                load.put(t, data_input.readInt());
-
-            boardingFirstTurn = BoardingFirstTurn.valueOf(data_input.readInt());
-
-            for (int i = 0; i < MarinesCompartment.getSize(); i++)
-                for (int j = 0; j < Commons.PLAYERS_MAX; j++)
-                    boardingActionUsed[i][j] = data_input.readInt();
-
-            for (Parameter p : Parameter.values())
-                parameters.put(p, data_input.readInt());
-
-            sailesRipped = data_input.readBoolean();
-
-            for (Player p : Player.getValues())
-                marinesOnBoardWhileSailesRipped.put(p, data_input.readInt());
-
-            towedByID = data_input.readInt();
-            towOtherID = data_input.readInt();
-
-            turnEscapeAttemptUsed = data_input.readBoolean();
-            dummy = data_input.readInt();
-            for (int i = 0; i < dummy; i++)
-                escapeAttemptsUsed.add(ShallowAttempt.valueOf(data_input.readUTF()));
-            pullOnAnchorAttemptCarried = data_input.readBoolean();
-            towByOneAttemptCarried = data_input.readBoolean();
-
-            dummy = data_input.readInt();
-            previousTurnPosition.set(dummy, data_input.readInt());
-
-            shipsCoupled.clear();
-            coupledReasons.clear();
-            counter = data_input.readInt();
-            for (int i = 0; i < counter; i++) {
-                shipsCoupled.add(data_input.readInt());
-
-                dummy = data_input.readInt();
-                switch (dummy) {
-                case 0:
-                    coupledReasons.add(CoupleReason.BOARDING);
-                    break;
-                case 1:
-                    coupledReasons.add(CoupleReason.HANDLING);
-                    break;
-                default:
-                    System.err.print("Unknown couple reason value\n");
-                }
-            }
-
-            happinessSunk = data_input.readBoolean();
-            happinessBoarding = data_input.readBoolean();
-            happinessCapture = data_input.readBoolean();
-        } catch (IOException e) {
-            System.out.println("IO exception = " + e);
-        }
-    }
-
-
-    public Coordinate checkAngleToRotate(RotateDirection towedByRotation, RotateDirection towOtherRotation) {
+    public Range checkAngleToRotate(RotateDirection towedByRotation, RotateDirection towOtherRotation) {
         /*
          * Funkcja zwraca maksymalny możliwy zakres obrotu statku.
          */
 
         // par. 12.3
         if (getShipsCoupled().size() > 0)
-            return new Coordinate(0, 0);
+            return new Range(0, 0);
         // --
 
         // par. 17.2
         if (getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON)
-            return new Coordinate(0, 0);
+            return new Range(0, 0);
         // --
 
         if (getParameter(Parameter.IS_WRECK) == Commons.ON || towedByRotation != null) {
-            return new Coordinate(0, 0);
+            return new Range(0, 0);
         }
 
         if (getMovesQueueCode() == MovesQueueCode.END)
-            return new Coordinate(0, 0);
+            return new Range(0, 0);
 
         if (getTowOther() != null) {
             // par. 16.8
-            Coordinate crd = new Coordinate(-Math.min(1, getHelm(Commons.READY)), Math.min(1, getHelm(Commons.READY)));
+            Range range = new Range(-Math.min(1, helm.getReady()), Math.min(1, getHelm(helm.getReady())));
             // --
 
             // par. 8.5.3
             if (RotateDirection.rotate(getRotation(), -4) == towOtherRotation)
-                crd.setA(0);
+                range.setLowerBound(0);
 
             if (RotateDirection.rotate(getRotation(), +4) == towOtherRotation)
-                crd.setB(0);
+                range.setUpperBound(0);
             // --
 
-            return crd;
+            return range;
         }
 
-        return new Coordinate(-getHelm(Commons.READY), getHelm(Commons.READY));
+        return new Range(-helm.getReady(), helm.getReady());
     }
 
 
     public CommanderState getCommanderOnBoardState(Player player) {
-        for (MarinesCompartment loc : MarinesCompartment.values()) {
-            if (loc == MarinesCompartment.NONE)
-                continue;
+        for (MarinesCompartment loc : MarinesCompartment.getShipCompartments()) {
             if (getCommanderState(player, loc) != CommanderState.NOT_THERE)
                 return getCommanderState(player, loc);
         }
@@ -1105,29 +1107,22 @@ public class Ship {
 
         price -= (getShipClass().getHelmMax() - getHelm(Commons.BOTH)) * RepairType.HELM.getCost();
 
-        for (GunCompartment gc : GunCompartment.values()) {
-            if (gc == GunCompartment.NONE)
-                continue;
-            for (Gun t : Gun.values()) {
-                if (t == Gun.NONE)
-                    continue;
+        for (GunCompartment gc : GunCompartment.getValues()) {
+            for (Gun t : Gun.getValues()) {
                 price -= (getShipClass().getCannonMax()[gc.ordinal()][t.ordinal()] - getCannonsNumber(gc, t,
                         Commons.BOTH)) * t.getPrice(DealType.BUY);
             }
         }
 
         int marinesTotal = 0;
-        for (MarinesCompartment mc : MarinesCompartment.values()) {
-            if (mc == MarinesCompartment.NONE || mc == MarinesCompartment.SHIP_X)
-                continue;
-            // FIXME
-            // marinesTotal += getMarinesNumber(currentPlayer, mc,
-            // Commons.BOTH);
+        for (MarinesCompartment mc : MarinesCompartment.getShipCompartments()) {
+            marinesTotal += getMarinesNumber(owner, mc, Commons.BOTH);
         }
 
         if (marinesTotal < getShipClass().getCrewMax())
             price -= getShipClass().getCrewMax() - marinesTotal;
 
+        // XXX: dobre to (NIL)?
         if (price < 0)
             return Commons.NIL;
         else

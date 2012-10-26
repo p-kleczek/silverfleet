@@ -375,7 +375,7 @@ public class BoardPanel extends JPanel {
                 if (i <= Board.WIDTH_MAX) {
                     if (MainBoard.getBoardPanelMode() == DisplayMode.DEPLOY_MODE) {
                         if (clipBoardShipID == null) {
-                            Integer shipID = MainBoard.game.getBoard().getHex(i - 1, j - 1).shipID;
+                            Integer shipID = MainBoard.game.getBoard().getHex(i - 1, j - 1).ship;
                             if (shipID != null && MainBoard.isSelectable(shipID)) {
                                 clipBoardShipID = shipID;
                                 MainBoard.setSelectedShip(shipID, Tabs.MOVEMENT);
@@ -398,7 +398,7 @@ public class BoardPanel extends JPanel {
                         // mozliwosc operowania tylko w obrebie aktualnie
                         // przetwarzanego statku
                     } else {
-                        Integer shipID = MainBoard.game.getBoard().getHex(i - 1, j - 1).shipID;
+                        Integer shipID = MainBoard.game.getBoard().getHex(i - 1, j - 1).ship;
                         if (shipID == null) {
                             MainBoard.setSelectedShip(null, Tabs.MOVEMENT);
                             MainBoard.addMessage("Selected ship: none\n");

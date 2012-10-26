@@ -8,24 +8,24 @@ import java.util.Map;
 
 import sfmainframe.Commons;
 import sfmainframe.Player;
-import sfmainframe.Reusable;
+import sfmainframe.ReusableMap;
 import sfmainframe.gameplay.KillingMode;
 import sfmainframe.ship.marines.CommanderState;
 import sfmainframe.ship.marines.MarinesCompartment;
 
 public class MarinesSection {
 
-    Map<MarinesCompartment, Reusable<Player>> marines;
+    Map<MarinesCompartment, ReusableMap<Player>> marines;
 
     private CommanderState[][] commanders = new CommanderState[MarinesCompartment.getShipCompartments().length][Commons.PLAYERS_MAX];
 
 
     public MarinesSection() {
 
-        marines = new HashMap<MarinesCompartment, Reusable<Player>>();
+        marines = new HashMap<MarinesCompartment, ReusableMap<Player>>();
 
         for (MarinesCompartment mc : MarinesCompartment.getShipCompartments())
-            marines.put(mc, new Reusable<Player>(Player.class, Player.getValues()));
+            marines.put(mc, new ReusableMap<Player>(Player.class, Player.getValues()));
 
         for (MarinesCompartment mc : MarinesCompartment.getShipCompartments())
             for (Player p : Player.getValues())
@@ -42,18 +42,17 @@ public class MarinesSection {
      *            compartment from which marines shall be removed
      */
     public void clear(Player player, MarinesCompartment location) {
-        marines.get(location).clear(player);
+        marines.get(location).getElement(player).clear();
         commanders[player.ordinal()][location.ordinal()] = CommanderState.NOT_THERE;
     }
 
 
     public MarinesSection(MarinesSection ms) {
 
-        marines = new HashMap<MarinesCompartment, Reusable<Player>>();
+        marines = new HashMap<MarinesCompartment, ReusableMap<Player>>();
         for (MarinesCompartment mc : MarinesCompartment.getShipCompartments()) {
             for (Player p : Player.getValues()) {
-                marines.get(mc).setReady(p, ms.marines.get(mc).getReady(p));
-                marines.get(mc).setUsed(p, ms.marines.get(mc).getUsed(p));
+                marines.get(mc).getElement(p).copy(ms.marines.get(mc).getElement(p));
                 commanders[mc.ordinal()][p.ordinal()] = ms.commanders[mc.ordinal()][p.ordinal()];
             }
         }
@@ -61,19 +60,19 @@ public class MarinesSection {
 
 
     public MarinesSection(ShipClass sc, Player shipOwner) {
-        marines.get(MarinesCompartment.DECK).setReady(shipOwner, sc.getCrewDeckMax());
-        marines.get(MarinesCompartment.BATTERIES).setReady(shipOwner, sc.getCrewMax() - sc.getCrewDeckMax());
+        marines.get(MarinesCompartment.DECK).getElement(shipOwner).setReady(sc.getCrewDeckMax());
+        marines.get(MarinesCompartment.BATTERIES).getElement(shipOwner).setReady(sc.getCrewMax() - sc.getCrewDeckMax());
     }
 
 
     public int getMarinesNumber(Player player, MarinesCompartment location, int state) {
         switch (state) {
         case Commons.READY:
-            return marines.get(location).getReady(player);
+            return marines.get(location).getElement(player).getReady();
         case Commons.USED:
-            return marines.get(location).getUsed(player);
+            return marines.get(location).getElement(player).getUsed();
         case Commons.BOTH:
-            return marines.get(location).getTotal(player);
+            return marines.get(location).getElement(player).getTotal();
         default:
             throw new IllegalArgumentException();
         }
@@ -87,10 +86,10 @@ public class MarinesSection {
 
     public void moveMarines(Player player, MarinesCompartment source, MarinesCompartment destination, int amount) {
         if (source != MarinesCompartment.SHIP_X)
-            marines.get(source).modifyReady(player, -amount);
+            marines.get(source).getElement(player).modifyReady(-amount);
 
         if (destination != MarinesCompartment.SHIP_X)
-            marines.get(destination).modifyUsed(player, amount);
+            marines.get(destination).getElement(player).modifyUsed(amount);
     }
 
 
@@ -126,23 +125,23 @@ public class MarinesSection {
 
         int currentAmount = amount;
 
-        if (currentAmount <= marines.get(location).getReady(player)) {
-            marines.get(location).modifyReady(player, -currentAmount);
+        if (currentAmount <= marines.get(location).getElement(player).getReady()) {
+            marines.get(location).getElement(player).modifyReady(-currentAmount);
             ret[0] = amount;
             return ret;
         }
 
-        currentAmount -= marines.get(location).getReady(player);
-        marines.get(location).setReady(player, 0);
+        currentAmount -= marines.get(location).getElement(player).getReady();
+        marines.get(location).getElement(player).setReady(0);
 
-        if (currentAmount <= marines.get(location).getUsed(player)) {
-            marines.get(location).modifyUsed(player, -currentAmount);
+        if (currentAmount <= marines.get(location).getElement(player).getUsed()) {
+            marines.get(location).getElement(player).modifyUsed(-currentAmount);
             ret[0] = amount;
             return ret;
         }
 
-        currentAmount -= marines.get(location).getUsed(player);
-        marines.get(location).setUsed(player, 0);
+        currentAmount -= marines.get(location).getElement(player).getUsed();
+        marines.get(location).getElement(player).setUsed(0);
 
         // 5.3.3
         if (commanders[location.ordinal()][player.ordinal()] != CommanderState.NOT_THERE) {
@@ -189,8 +188,8 @@ public class MarinesSection {
     public void writeToStream(DataOutputStream dos) throws IOException {
         for (MarinesCompartment mc : MarinesCompartment.getShipCompartments()) {
             for (Player p : Player.getValues()) {
-                dos.writeInt(marines.get(mc).getReady(p));
-                dos.writeInt(marines.get(mc).getUsed(p));
+                dos.writeInt(marines.get(mc).getElement(p).getReady());
+                dos.writeInt(marines.get(mc).getElement(p).getUsed());
             }
         }
 
@@ -203,8 +202,8 @@ public class MarinesSection {
     public void readFromStream(DataInputStream dis) throws IOException {
         for (MarinesCompartment mc : MarinesCompartment.getShipCompartments()) {
             for (Player p : Player.getValues()) {
-                marines.get(mc).setReady(p, dis.readInt());
-                marines.get(mc).setUsed(p, dis.readInt());
+                marines.get(mc).getElement(p).setReady(dis.readInt());
+                marines.get(mc).getElement(p).setUsed(dis.readInt());
             }
         }
 

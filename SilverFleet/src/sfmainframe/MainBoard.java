@@ -262,9 +262,9 @@ public class MainBoard {
 	}
 
 
-	public static void setSelectedShip(Integer id, Tabs tab) {
+	public static void setSelectedShip(Ship ship, Tabs tab) {
 		tabbedPane.setSelectedIndex(tab.ordinal());
-		selectedShipID = id;
+		selectedShipID = ship.getID();
 
 		selectedEscapeType = ShallowAttempt.DROP_CANNONS;
 
@@ -4515,8 +4515,8 @@ public class MainBoard {
 		// --
 
 		// umieszczenie dowodcy na okrecie po dwukrotnym zaznaczeniu statku
-		if (hex.terrain == Terrain.ISLAND || hex.shipID != null) {
-			if (hex.shipID == boardPanel.getClipBoardShip()) {
+		if (hex.terrain == Terrain.ISLAND || hex.ship != null) {
+			if (hex.ship == boardPanel.getClipBoardShip()) {
 				game.deployCommander(boardPanel.getClipBoardShip());
 			}
 			return false;

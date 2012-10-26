@@ -162,8 +162,8 @@ public class Board {
             if (!ownerAllies.contains(report.hexOwner.ordinal()))
                 report.problemOccured = true;
 
-            report.hexShipID = hex.shipID;
-            if (report.hexShipID != null)
+            report.hexShip = hex.ship;
+            if (report.hexShip != null)
                 report.problemOccured = true;
 
             if (report.problemOccured)
@@ -254,7 +254,7 @@ public class Board {
                 // danego heksu
                 double d = Math.abs(A * dhx + B * dhy + C) / Math.sqrt(A * A + B * B);
                 if (d < 0.5) {
-                    if (getHex(hexA, hexB).terrain == Terrain.ISLAND || getHex(hexA, hexB).shipID != null)
+                    if (getHex(hexA, hexB).terrain == Terrain.ISLAND || getHex(hexA, hexB).ship != null)
                         return true;
                 }
             }

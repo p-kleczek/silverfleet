@@ -2,6 +2,7 @@ package sfmainframe.board;
 
 import sfmainframe.Commons;
 import sfmainframe.Player;
+import sfmainframe.ship.Ship;
 
 
 public class ObstacleReport {
@@ -10,7 +11,7 @@ public class ObstacleReport {
 	public boolean problemOccured;
 	public Terrain hexTerrainType;
 	public Player hexOwner;
-	public Integer hexShipID;
+	public Ship hexShip;
 
 
 	public ObstacleReport() {
@@ -18,6 +19,6 @@ public class ObstacleReport {
 		problemOccured = false;
 		hexTerrainType = Terrain.WATER;
 		hexOwner = Player.NONE;
-		hexShipID = null;
+		hexShip = null;
 	}
 }

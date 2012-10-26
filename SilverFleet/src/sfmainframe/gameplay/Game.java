@@ -7,8 +7,10 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 import javax.swing.JDialog;
@@ -34,6 +36,7 @@ import sfmainframe.gui.UpdateMode;
 import sfmainframe.ship.BoardingFirstTurn;
 import sfmainframe.ship.Gun;
 import sfmainframe.ship.GunCompartment;
+import sfmainframe.ship.Happiness;
 import sfmainframe.ship.Parameter;
 import sfmainframe.ship.Ship;
 import sfmainframe.ship.ShipClass;
@@ -58,10 +61,8 @@ public class Game {
     private RotateDirection windDirection;
 
     private Board board;
-    private Ships ships;
+    private final List<Ship> ships;
     private List<PlayerClass> players;
-
-    private Integer currentShipBoardingID; // ID aktualnie przegladanego statku
 
     // TODO : 3 itd. - sabotaż...
     /**
@@ -87,7 +88,7 @@ public class Game {
     public Game() {
         board = new Board(Board.WIDTH_MAX, Board.HEIGHT_MAX);
 
-        ships = new Ships();
+        ships = new ArrayList<Ship>();
         players = new ArrayList<PlayerClass>();
 
         // TODO : obecnie domyślnie 8 graczy
@@ -98,7 +99,6 @@ public class Game {
 
         conflictID = 0;
         turnID = 0;
-        currentShipBoardingID = null;
         windSpeed = Commons.NIL;
         windDirection = RotateDirection.N;
         currentPlayer = Player.NONE;
@@ -141,17 +141,15 @@ public class Game {
         for (PlayerClass p : players)
             p.addAlly(p.getIdentity());
 
-        ships.initTurn();
+        for (Ship s : ships)
+            if (s.getOwner() == Player.HAMPSHIRE)
+                s.setHappiness(+1);
+
     }
 
 
     public Board getBoard() {
         return board;
-    }
-
-
-    public Ships getShips() {
-        return ships;
     }
 
 
@@ -164,15 +162,15 @@ public class Game {
     public void endPlayerGame(Player player) {
         MainBoard.addMessage(player.toString() + " was eliminated.\n");
 
-        for (int sID = 0; sID < Commons.SHIPS_MAX; sID++) {
+        for (Ship s : ships) {
             for (MarinesCompartment comp : MarinesCompartment.getShipCompartments()) {
-                ships.getShip(sID).clearPlayerMarines(player, comp);
-                ships.getShip(sID).setCommander(player, comp, CommanderState.NOT_THERE);
+                s.clearPlayerMarines(player, comp);
+                s.setCommander(player, comp, CommanderState.NOT_THERE);
             }
-            ships.calculateShipOwner(sID);
+            Ships.calculateShipOwner(s);
 
-            if (ships.getShip(sID).getInternedBy() == player)
-                ships.sinkShip(sID, DestroyShipMode.SINK);
+            if (s.getInternedBy() == player)
+                sinkShip(s, DestroyShipMode.SINK);
         }
 
         getPlayer(player).endGame();
@@ -226,7 +224,7 @@ public class Game {
     }
 
 
-    private NextPlayerState determineNextPlayer(Integer shipID) {
+    private NextPlayerState determineNextPlayer(Ship ship) {
         boolean apply = false;
 
         int playersInGameCounter = 0;
@@ -263,12 +261,12 @@ public class Game {
         // par. 12.4
         if (stage == Stage.BOARDING_MOVEMENTS || stage == Stage.BOARDING_ACTIONS || stage == Stage.BOARDING_SABOTAGE) {
             // par. 12.2.2.3
-            Player owner = getShip(shipID).getOwner();
-            if (getShip(shipID).isBoardingFirstTurn() == BoardingFirstTurn.YES
+            Player owner = ship.getOwner();
+            if (ship.isBoardingFirstTurn() == BoardingFirstTurn.YES
                     && (stage == Stage.BOARDING_MOVEMENTS && processed.get(owner) == 0
                             || stage == Stage.BOARDING_ACTIONS && processed.get(owner) == 1 || stage == Stage.BOARDING_SABOTAGE
                             && processed.get(owner) == 2)) {
-                currentPlayer = getShip(shipID).getOwner();
+                currentPlayer = ship.getOwner();
                 processed.put(currentPlayer, processed.get(currentPlayer) + 1);
                 return NextPlayerState.NEXT_PLAYER;
             }
@@ -402,7 +400,7 @@ public class Game {
             // par. 5.3.9
             if (p.getFleet().size() == 0) {
                 p.endGame();
-                MainBoard.addMessage(p.getIdentity().toString() + " doesn't posess any ships.\n");
+                MainBoard.addMessage(p.getIdentity().toString() + " doesn't posess any Ships.\n");
             }
             // --
         }
@@ -413,14 +411,13 @@ public class Game {
         // --
 
         // zaladunek srebra na jednostki Sidonii
-        Set<Integer> pasadenaFleet = getPlayer(Player.PASADENA).getFleet();
-        for (Integer sID : pasadenaFleet)
-            getShip(sID).loadCargo(CargoType.SILVER, getShip(sID).getShipClass().getLoadMax());
+        for (Ship s : getPlayer(Player.PASADENA).getFleet())
+            s.loadCargo(CargoType.SILVER, s.getShipClass().getLoadMax());
 
         // par. 5.6.4
-        for (int i = 0; i < Commons.SHIPS_MAX; i++) {
-            if (getShip(i).getInternedBy() != Player.NONE) {
-                ships.sinkShip(i, DestroyShipMode.SINK);
+        for (Ship s : ships) {
+            if (s.getInternedBy() != Player.NONE) {
+                sinkShip(s, DestroyShipMode.SINK);
                 addShipToBank(ShipClass.NONE);
             }
         }
@@ -435,13 +432,12 @@ public class Game {
         if (currentPlayer == Player.NONE) {
             // rozmieszczenie okretow kazdego gracza na jego polu startowym
             for (Player p : Player.getValues()) {
-                Set<Integer> fleet = getPlayer(p).getFleet();
-                for (Integer sID : fleet) {
+                for (Ship s : getPlayer(p).getFleet()) {
                     positionSearch: for (int a = 0; a < Board.WIDTH_MAX; a++) {
                         for (int b = 0; b < Board.HEIGHT_MAX; b++) {
                             Hex hex = board.getHex(a, b);
-                            if (hex.owner == p && hex.terrain == Terrain.WATER && hex.shipID == null) {
-                                getShip(sID).setPosition(a, b);
+                            if (hex.owner == p && hex.terrain == Terrain.WATER && hex.ship == null) {
+                                s.setPosition(a, b);
                                 break positionSearch;
                             }
                         }
@@ -493,36 +489,36 @@ public class Game {
         final int DEADLY_WIND_STRENGTH = 10;
         final int MIN_MARINES_TO_SET_SAILES = 4;
 
-        for (int i = 0; i < Commons.SHIPS_MAX; i++) {
-            if (getShip(i).getParameter(Parameter.IS_WRECK) == Commons.ON) {
+        for (Ship s : ships) {
+            if (s.getParameter(Parameter.IS_WRECK) == Commons.ON) {
                 // par. 15.2
-                getShip(i).setRotation(windDirection);
-                ships.forcedShipMovement(i, ShipMovementMode.MOVE_WRECK_NORMAL);
+                s.setRotation(windDirection);
+                Ships.forcedShipMovement(s, ShipMovementMode.MOVE_WRECK_NORMAL);
                 // --
             }
 
             // par. 15.3
             if (windSpeed > DEADLY_WIND_STRENGTH && Dice.roll() == 6)
-                ships.sinkShip(i, DestroyShipMode.SINK);
+                sinkShip(s, DestroyShipMode.SINK);
             // --
         }
 
         // par. 9.6.1
-        for (int i = 0; i < Commons.SHIPS_MAX; i++) {
-            if (!getShip(i).isSailesRipped())
+        for (Ship s : ships) {
+            if (!s.isSailesRipped())
                 continue;
 
             // par. 9.6.1.3
             if (windSpeed < DEADLY_WIND_STRENGTH)
-                getShip(i).setSails();
+                s.setSails();
             // --
 
             Player playerInControl = Player.NONE;
-            Map<Player, Integer> previousMarinesNumber = getShip(i).getMarinesOnDeckWhileSailedRipped();
+            Map<Player, Integer> previousMarinesNumber = s.getMarinesOnDeckWhileSailedRipped();
             int groupSum = 0;
 
             for (Player plr : Player.getValues()) {
-                if (ships.checkIfPlayerControlsLocation(i, plr, MarinesCompartment.DECK, true)) {
+                if (Ships.checkIfPlayerControlsLocation(s, plr, MarinesCompartment.DECK, true)) {
                     playerInControl = plr;
                     break;
                 }
@@ -531,12 +527,12 @@ public class Game {
             if (playerInControl != Player.NONE) {
                 for (Player plr : Player.getValues()) {
                     if (getPlayer(playerInControl).isAlly(plr))
-                        groupSum += getShip(i).getMarinesNumber(plr, MarinesCompartment.DECK, Commons.BOTH)
+                        groupSum += s.getMarinesNumber(plr, MarinesCompartment.DECK, Commons.BOTH)
                                 - previousMarinesNumber.get(plr);
                 }
 
                 if (groupSum > MIN_MARINES_TO_SET_SAILES)
-                    getShip(i).setSails();
+                    s.setSails();
             }
         }
         // --
@@ -544,94 +540,93 @@ public class Game {
 
 
     private void stormAndTow() {
-        Integer tugID = null;
+        Ship tugID = null;
 
-        for (int i = 0; i < Commons.SHIPS_MAX; i++) {
-            if (!Board.isOnMap(getShip(i).getPosition()))
+        for (Ship s : ships) {
+            if (!Board.isOnMap(s.getPosition()))
                 continue;
 
-            getShip(i).prepareForNewTurn();
+            s.prepareForNewTurn();
 
             // par. 14.9
-            if (getShip(i).getParameter(Parameter.IS_EXPLOSIVE) == Commons.ON)
-                ships.sinkShip(i, DestroyShipMode.BLOWUP);
+            if (s.getParameter(Parameter.IS_EXPLOSIVE) == Commons.ON)
+                sinkShip(s, DestroyShipMode.BLOWUP);
             // --
 
-            if (getShip(i).isPullOnAnchorAttemptCarried()) {
-                getShip(i).setPullOnAnchorAttemptCarried(false);
+            if (s.isPullOnAnchorAttemptCarried()) {
+                s.setPullOnAnchorAttemptCarried(false);
                 // par. 17.10.2, 17.10.3
-                if (ships.rollDice(i, getShip(i).getOwner()) + ships.rollDice(i, getShip(i).getOwner()) < getShip(i)
-                        .getMast()) {
-                    MainBoard.addMessage("Ship #" + i + " escaped from treachous waters!\n");
-                    getShip(i).escapeFromShallow();
+                if (Ships.rollDice(s, s.getOwner()) + Ships.rollDice(s, s.getOwner()) < s.getMast()) {
+                    MainBoard.addMessage("Ship #" + s.getID() + " escaped from treachous waters!\n");
+                    s.escapeFromShallow();
                 } else {
-                    MainBoard.addMessage("Ship #" + i + " failed to escape from treachous waters!\n");
-                    getShip(i).setActionsOver(Commons.ON);
+                    MainBoard.addMessage("Ship #" + s.getID() + " failed to escape from treachous waters!\n");
+                    s.setActionsOver();
                 }
                 // --
             }
 
-            if (getShip(i).isTowByOneAttemptCarried()) {
-                getShip(i).setTowByOneAttemptCarried(false);
+            if (s.isTowByOneAttemptCarried()) {
+                s.setTowByOneAttemptCarried(false);
 
-                tugID = getShip(i).getTowedBy();
-                if (getShip(i).getTowedBy() != null) {
+                tugID = s.getTowedBy();
+                if (s.getTowedBy() != null) {
                     // par. 17.11.4
                     int sizeModifier = 0;
-                    if (getShip(i).getShipClass().getDurabilityMax() < getShip(tugID).getShipClass().getDurabilityMax())
+                    if (s.getShipClass().getDurabilityMax() < tugID.getShipClass().getDurabilityMax())
                         sizeModifier = 1;
                     // --
 
                     // par. 17.11.3
-                    if (ships.rollDice(i, getShip(i).getOwner()) + sizeModifier < getShip(i).getHelm(Commons.BOTH)
-                            + getShip(getShip(i).getTowedBy()).getHelm(Commons.BOTH)) {
-                        MainBoard.addMessage("Ship #" + i + " escaped from treachous waters!\n");
-                        getShip(i).escapeFromShallow();
+                    if (Ships.rollDice(s, s.getOwner()) + sizeModifier < s.getHelm(Commons.BOTH)
+                            + s.getTowedBy().getHelm(Commons.BOTH)) {
+                        MainBoard.addMessage("Ship #" + s.getID() + " escaped from treachous waters!\n");
+                        s.escapeFromShallow();
                     }
                     // --
                 }
                 // par. 17.11.5
                 else {
-                    MainBoard.addMessage("Ship #" + i + " failed to escape from treachous waters!\n");
-                    ships.throwTow(i);
+                    MainBoard.addMessage("Ship #" + s.getID() + " failed to escape from treachous waters!\n");
+                    Ships.throwTow(s);
                 }
                 // --
             }
 
             // par. 16.11
             if (windSpeed > 8) {
-                if (getShip(i).getTowOther() != null || getShip(i).getTowedBy() != null)
-                    ships.throwTow(i);
+                if (s.getTowOther() != null || s.getTowedBy() != null)
+                    Ships.throwTow(s);
             }
             // --
 
             // par. 9.1
             if (windSpeed >= 8) {
-                if (ships.forcedShipMovement(i, ShipMovementMode.MOVE_STORM) != MovementEvent.NONE)
+                if (Ships.forcedShipMovement(s, ShipMovementMode.MOVE_STORM) != MovementEvent.NONE)
                     continue;
             }
             // --
 
             // par. 9.2, par. 17.13
             if (windSpeed > 10) {
-                if (ships.forcedShipMovement(i, ShipMovementMode.MOVE_STORM) != MovementEvent.NONE)
+                if (Ships.forcedShipMovement(s, ShipMovementMode.MOVE_STORM) != MovementEvent.NONE)
                     continue;
-                ships.storm(i); // par. 9.4
+                Ships.storm(s); // par. 9.4
             }
             // --
 
-            if (getShip(i).getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON) {
-                ships.damageHull(i, 1); // par. 17.4
+            if (s.getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON) {
+                Ships.damageHull(s, 1); // par. 17.4
                 // par. 17.5
                 if (windSpeed > 8)
-                    ships.damageHull(i, 1);
+                    Ships.damageHull(s, 1);
                 // --
             }
         }
 
         // przygotowanie marynarzy uzytych w czasie abordazu
-        for (int i = 0; i < Commons.SHIPS_MAX; i++)
-            getShip(i).prepareForNewTurn();
+        for (Ship s : ships)
+            s.prepareForNewTurn();
     }
 
 
@@ -655,17 +650,14 @@ public class Game {
     }
 
 
+    // FIXME: o co tutaj chodzi?!
     private void boardingPhase() {
-        while (currentShipBoardingID < Commons.SHIPS_MAX - 1) {
-            // FIXME: skomplikowany warunek, magiczne liczby
-            while (currentShipBoardingID < Commons.SHIPS_MAX - 1
-                    && (getProcessedPlayersNumber(3) == Commons.PLAYERS_MAX
-                            || !getShip(currentShipBoardingID).isOnGameBoard() || !ships.checkIfShipBoarded(
-                            currentShipBoardingID, getShip(currentShipBoardingID).getOwner())))
-                currentShipBoardingID++;
 
-            if (currentShipBoardingID == Commons.SHIPS_MAX)
-                break;
+        for (Ship currentShipBoarding : ships) {
+            // FIXME: skomplikowany warunek, magiczne liczby
+            if (getProcessedPlayersNumber(3) == Commons.PLAYERS_MAX || !currentShipBoarding.isOnGameBoard()
+                    || !Ships.checkIfShipBoarded(currentShipBoarding, currentShipBoarding.getOwner()))
+                continue;
 
             if (getProcessedPlayersNumber(0) == Commons.PLAYERS_MAX) {
                 for (Player p : Player.getValues())
@@ -673,15 +665,15 @@ public class Game {
                 agressors.clear();
                 defenders.clear();
 
-                getShip(currentShipBoardingID).prepareForNewTurn();
+                currentShipBoarding.prepareForNewTurn();
 
                 for (Player p : Player.getValues()) {
-                    if (ships.getShip(currentShipBoardingID).getPlayerMarinesOnShip(p, true) == 0) {
+                    if (currentShipBoarding.getPlayerMarinesOnShip(p, true) == 0) {
                         // brak marynarzy na pokladzie - nie ma co
                         // przetwarzac
                         processed.put(p, 3);
                     } else {
-                        if (getPlayer(getShip(currentShipBoardingID).getOwner()).isAlly(p))
+                        if (getPlayer(currentShipBoarding.getOwner()).isAlly(p))
                             defenders.add(p);
                         else
                             agressors.add(p);
@@ -689,12 +681,12 @@ public class Game {
                 }
             }
 
-            switch (determineNextPlayer(currentShipBoardingID)) {
+            switch (determineNextPlayer(currentShipBoarding)) {
             case NO_PLAYERS_LEFT:
                 stage = Stage.INTERNED_SHIPS;
                 break;
             case NEXT_PLAYER:
-                MainBoard.setSelectedShip(currentShipBoardingID, Tabs.MARINES);
+                MainBoard.setSelectedShip(currentShipBoarding, Tabs.MARINES);
                 return;
             case LAST_PLAYER:
                 currentPlayer = Player.NONE;
@@ -711,8 +703,7 @@ public class Game {
                     // czy to dobrze ?
                     return;
                 } else
-                    currentShipBoardingID++;
-                break;
+                    continue;
             default:
                 throw new IllegalArgumentException();
             }
@@ -738,15 +729,13 @@ public class Game {
                 if (p == currentPlayer)
                     continue;
 
-                Set<Integer> fleet = getPlayer(currentPlayer).getInternedShips(p);
-
-                for (Integer sId : fleet) {
-                    int rv = JOptionPane.showOptionDialog(null, "What to do with this interned ship?", "Ship " + sId,
-                            JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE, null, internedOptions,
-                            internedOptions[2]);
+                for (Ship s : getPlayer(currentPlayer).getInternedShips(p)) {
+                    int rv = JOptionPane.showOptionDialog(null, "What to do with this interned ship?",
+                            "Ship " + s.getID(), JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE, null,
+                            internedOptions, internedOptions[2]);
 
                     if (rv == JOptionPane.YES_OPTION) {
-                        getPlayer(p).addShipToFleet(sId);
+                        getPlayer(p).addShipToFleet(s);
                         continue;
                     } else if (rv == JOptionPane.NO_OPTION) {
                         JSpinner priceSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 5000, 1));
@@ -757,11 +746,11 @@ public class Game {
                         JDialog dialog = optionPane.createDialog(null);
                         dialog.setVisible(true);
 
-                        auctions.add(new Auction(auctionsCounter, 0, sId, getShip(sId).getShipClass(),
-                                (Integer) (priceSpinner.getValue())));
+                        auctions.add(new Auction(auctionsCounter, 0, s, s.getShipClass(), (Integer) (priceSpinner
+                                .getValue())));
                         auctionsCounter++;
                     } else /* CANCEL_OPTION */{
-                        ships.sinkShip(sId, DestroyShipMode.SINK);
+                        sinkShip(s, DestroyShipMode.SINK);
                         addShipToBank(ShipClass.NONE); // par. 5.6.6
                     }
                 }
@@ -812,9 +801,11 @@ public class Game {
                 auctions.remove(a);
                 if (winner != Player.NONE) {
                     if (a.getOfferedShipID() == null) {
-                        launchShip(winner, ships.findFreeShipSlot(), a.getOfferedShipClass());
+                        launchShip(winner, getFreeID(), a.getOfferedShipClass());
                     } else {
-                        getPlayer(winner).addShipToFleet(a.getOfferedShipID());
+                        // FIXME
+                        // getPlayer(winner).addShipToFleet(a.getOfferedShipID());
+
                         getShip(a.getOfferedShipID()).setInternedBy(Player.NONE);
                         getPlayer(getShip(a.getOfferedShipID()).getOwner()).addGold(highestBid);
                         getShip(a.getOfferedShipID()).setOwner(winner);
@@ -825,8 +816,11 @@ public class Game {
                     MainBoard.addMessage(String.format("Auction #%d won by %s!", a.getAuctionID(), winner.toString()));
                 } else {
                     // par. 5.6.4
-                    if (a.getOfferedShipID() != null && getShip(a.getOfferedShipID()).getInternedBy() != Player.NONE)
-                        ships.sinkShip(a.getOfferedShipID(), DestroyShipMode.SINK);
+                    if (a.getOfferedShipID() != null && getShip(a.getOfferedShipID()).getInternedBy() != Player.NONE) {
+                        // FIXME
+                        // sinkShip(a.getOfferedShipID(),
+                        // DestroyShipMode.SINK);
+                    }
                     // --
                 }
             }
@@ -856,8 +850,8 @@ public class Game {
             stage = Stage.DEPLOYMENT;
         }
 
-        if (stage != Stage.BOARDING_ACTIONS)
-            currentShipBoardingID = 0;
+        // if (stage != Stage.BOARDING_ACTIONS)
+        // currentShipBoarding = ships.get(0);
 
         if (stage == Stage.DEPLOYMENT) {
             deployment();
@@ -937,7 +931,28 @@ public class Game {
 
 
     public Ship getShip(int id) {
-        return ships.getShip(id);
+        for (Ship s : ships)
+            if (s.getID() == id)
+                return s;
+
+        throw new NoSuchElementException();
+    }
+
+
+    public Ship getShipOnHex(Coordinate coord) {
+        for (Ship s : ships)
+            if (s.getPosition().equals(coord))
+                return s;
+        return null;
+    }
+
+
+    public int getPlayerFleetSize(Player player) {
+        int size = 0;
+        for (Ship s : ships)
+            if (s.getOwner() == player)
+                size++;
+        return size;
     }
 
 
@@ -948,11 +963,10 @@ public class Game {
             silver.put(p, 0);
 
         // par. 3.x ("wyplaty" za zdobycze w grze)
-        for (int i = 0; i < Commons.SHIPS_MAX; i++) {
-            if (getShip(i).getOwner() != Player.NONE) {
-                silver.put(getShip(i).getOwner(),
-                        silver.get(getShip(i).getOwner()) + getShip(i).getLoad(CargoType.SILVER));
-                getShip(i).unloadCargo(CargoType.SILVER, Commons.INF);
+        for (Ship s : ships) {
+            if (s.getOwner() != Player.NONE) {
+                silver.put(s.getOwner(), silver.get(s.getOwner()) + s.getLoad(CargoType.SILVER));
+                s.unloadAll(CargoType.SILVER);
             }
         }
 
@@ -979,21 +993,20 @@ public class Game {
         produceShips();
 
         // par. 15.8 (wraki na planszy moga byc kupione jako dowolny nowy okret)
-        for (int i = 0; i < Commons.SHIPS_MAX; i++) {
-            if (getShip(i).getID() != null && getShip(i).getOwner() == Player.NONE
-                    && Board.isOnMap(getShip(i).getPosition())) {
+        for (Ship s : ships) {
+            if (s.getID() != null && s.getOwner() == Player.NONE && s.isOnGameBoard()) {
                 // mozliwosc zakupu jako dowolny nowy okret
                 addShipToBank(ShipClass.NONE);
-                ships.clearSlot(i);
+                ships.remove(s);
                 continue;
             }
 
             // szczescie
-            getShip(i).modifyHappiness(+1); // par. 18.1
-            if (getShip(i).getHappinessCapture())
-                getShip(i).modifyHappiness(+2);
-            else if (getShip(i).getHappinessSunk() || getShip(i).getHappinessBoarding())
-                getShip(i).modifyHappiness(+1);
+            s.modifyHappiness(+1); // par. 18.1
+            if (s.isHappinessFlagSet(Happiness.CAPTURE))
+                s.modifyHappiness(+2);
+            else if (s.isHappinessFlagSet(Happiness.SUNK) || s.isHappinessFlagSet(Happiness.BOARDING))
+                s.modifyHappiness(+1);
             // TODO: premia trzech punktow
 
             /*
@@ -1003,31 +1016,30 @@ public class Game {
              * internowani
              */
 
-            Player shipOwner = getShip(i).getOwner();
-            getShip(i).prepareForNewTurn();
+            Player shipOwner = s.getOwner();
+            s.prepareForNewTurn();
 
-            getPlayer(shipOwner).addCannons(Gun.LIGHT, getShip(i).getLoad(CargoType.CANNONS_LIGHT));
-            getShip(i).unloadCargo(CargoType.CANNONS_LIGHT, Commons.INF);
-            getPlayer(shipOwner).addCannons(Gun.MEDIUM, getShip(i).getLoad(CargoType.CANNONS_MEDIUM));
-            getShip(i).unloadCargo(CargoType.CANNONS_MEDIUM, Commons.INF);
+            getPlayer(shipOwner).addCannons(Gun.LIGHT, s.getLoad(CargoType.CANNONS_LIGHT));
+            s.unloadAll(CargoType.CANNONS_LIGHT);
+            getPlayer(shipOwner).addCannons(Gun.MEDIUM, s.getLoad(CargoType.CANNONS_MEDIUM));
+            s.unloadAll(CargoType.CANNONS_MEDIUM);
 
             for (MarinesCompartment c : MarinesCompartment.getShipCompartments()) {
                 for (Player p : Player.getValues()) {
                     if (getPlayer(shipOwner).isAlly(p)) {
-                        getPlayer(p).addMarines(getShip(i).getMarinesNumber(p, c, Commons.BOTH));
-                        if (getShip(i).getCommanderState(p, c) != CommanderState.NOT_THERE)
+                        getPlayer(p).addMarines(s.getMarinesNumber(p, c, Commons.BOTH));
+                        if (s.getCommanderState(p, c) != CommanderState.NOT_THERE)
                             getPlayer(p).setCommanderInternedBy(Player.NONE);
                     } else {
-                        getPlayer(shipOwner).addMarinesInterned(p, getShip(i).getMarinesNumber(p, c, Commons.BOTH));
-                        if (getShip(i).getCommanderState(p, c) != CommanderState.NOT_THERE) {
+                        getPlayer(shipOwner).addMarinesInterned(p, s.getMarinesNumber(p, c, Commons.BOTH));
+                        if (s.getCommanderState(p, c) != CommanderState.NOT_THERE) {
                             getPlayer(shipOwner).addCommandersInterned(p);
-                            getPlayer(p).setCommanderInternedBy(getShip(i).getOwner());
+                            getPlayer(p).setCommanderInternedBy(s.getOwner());
                         }
                     }
 
-                    getShip(i).moveMarines(p, c, MarinesCompartment.SHIP_X,
-                            getShip(i).getMarinesNumber(p, c, Commons.BOTH));
-                    getShip(i).setCommander(p, c, CommanderState.NOT_THERE);
+                    s.moveMarines(p, c, MarinesCompartment.SHIP_X, s.getMarinesNumber(p, c, Commons.BOTH));
+                    s.setCommander(p, c, CommanderState.NOT_THERE);
                 }
             }
         }
@@ -1092,7 +1104,8 @@ public class Game {
 
             data_output.writeInt(auctionsCounter);
 
-            data_output.writeInt(currentShipBoardingID);
+            // FIXME
+            // data_output.writeInt(currentShipBoardingID);
 
             for (Player p : Player.getValues())
                 data_output.writeInt(processed.get(p));
@@ -1130,8 +1143,9 @@ public class Game {
             for (Player p : Player.getValues())
                 getPlayer(p).readFromFile(data_input);
 
-            for (int i = 0; i < Commons.SHIPS_MAX; i++)
-                getShip(i).readFromFile(data_input);
+            // FIXME
+            // for (int i = 0; i < Commons.SHIPS_MAX; i++)
+            // getShip(i).readFromFile(data_input);
 
             currentPlayer = Player.valueOf(data_input.readInt());
 
@@ -1143,7 +1157,8 @@ public class Game {
             for (int i = 0; i < auctionsCounter; i++)
                 auctions.add(Auction.readFromFile(data_input));
 
-            currentShipBoardingID = data_input.readInt();
+            // FIXME
+            // currentShipBoardingID = data_input.readInt();
 
             for (Player p : Player.getValues())
                 processed.put(p, data_input.readInt());
@@ -1236,7 +1251,7 @@ public class Game {
             PlayerClass _clientB, Ship[] _shipsB, int _cannonsLightB, int _cannonsMediumB, int _cannonsHeavyB,
             int _marinesB, int _goldB, int _silverB, boolean _freeCommanderB) {
 
-        int maxThisMarines = Commons.INF;
+        int maxThisMarines = Integer.MAX_VALUE;
         // TODO : najpierw wymiana marynarzy-jencow, dopowro potem oddawanie
 
         for (Ship ship : _shipsB) {
@@ -1314,28 +1329,48 @@ public class Game {
     }
 
 
+    public int getFreeID() {
+        List<Integer> ids = new LinkedList<Integer>();
+
+        // XXX: jakoś optymalniej?
+        for (int i = 1; i < Commons.SHIPS_MAX; i++)
+            ids.add(i);
+
+        for (Ship s : ships) {
+            ids.remove(s.getID());
+        }
+
+        return ids.get(0);
+    }
+
+
     public void buildShip(Player player, ShipClass shipClass) {
-        int slot = ships.findFreeShipSlot();
+        // TODO: ograniczenie na wielkość floty, np.:
+        // ships.size() < SHIPS_MAX
 
-        if (slot == Commons.NIL)
-            return;
-
-        launchShip(player, slot, shipClass);
+        launchShip(player, getFreeID(), shipClass);
         getPlayer(player).removeShipFromYard();
         getPlayer(player).removeGold(shipClass.getPrice() / 2); // par.
                                                                 // 20.3.1
     }
 
 
-    public void sellShip(Player player, int shipID) {
-        ships.sinkShip(shipID, DestroyShipMode.SINK);
-        getPlayer(player).addGold(getShip(shipID).calculateSellPrice());
+    private void sinkShip(Ship ship, DestroyShipMode mode) {
+        Ships.sinkShip(ship, mode);
+        ships.remove(ship);
+    }
+
+
+    public void sellShip(Player player, Ship ship) {
+        sinkShip(ship, DestroyShipMode.SINK);
+        getPlayer(player).addGold(ship.calculateSellPrice());
     }
 
 
     public void launchShip(Player player, int shipID, ShipClass shipClass) {
-        getShip(shipID).setShip(player, shipClass, shipID);
-        getPlayer(player).addShipToFleet(shipID);
+        Ship s = new Ship(player, shipClass, shipID);
+        ships.add(s);
+        getPlayer(player).addShipToFleet(s);
     }
 
 

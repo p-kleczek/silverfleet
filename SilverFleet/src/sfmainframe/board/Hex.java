@@ -1,6 +1,7 @@
 package sfmainframe.board;
 
 import sfmainframe.Player;
+import sfmainframe.ship.Ship;
 
 /**
  * 
@@ -13,21 +14,22 @@ import sfmainframe.Player;
  */
 public class Hex {
 
-	public Integer shipID;
+	public Ship ship;
 	public Terrain terrain;
 	public Player owner;
 	
 	
 	public Hex() {
-		shipID = null;
+		ship = null;
 		terrain = Terrain.WATER;
 		owner = Player.NONE;
 	}
 	
 	public void decode(int value) {
-		shipID = value / 100;
-		if (shipID == 0)
-			shipID = null;
+	    // FIXME
+//		ship = value / 100;
+//		if (ship == 0)
+//			ship = null;
 
 		for (Terrain t : Terrain.values()) {
 			if (t.getCode() == ((value % 100) / 10) * 10)
@@ -38,7 +40,9 @@ public class Hex {
 	}
 	
 	public int encode() {
-		int iId = (shipID == null) ? 0 : shipID;
+	    // FIXME
+//		int iId = (ship == null) ? 0 : ship;
+        int iId = 0;
 		return iId * 100 + terrain.getCode() + owner.ordinal();
 	}
 	
