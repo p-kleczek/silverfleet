@@ -362,6 +362,9 @@ public class Game {
     }
 
 
+    /**
+     * Operations performed at the very beginning of every conflict.
+     */
     private void preConflictOperations() {
         final int SILVER_PRICE_MODIFIER = 15;
 
@@ -466,11 +469,11 @@ public class Game {
     }
 
 
+    /**
+     * Roll a dice to change wind strength and direction [7.2].
+     */
     private void defineWind() {
-        int roll = Commons.NIL;
-
-        // par. 7.2
-        roll = Dice.roll();
+        int roll = Dice.roll();
         if (roll == 1)
             windDirection = RotateDirection.rotate(windDirection, -1);
         if (roll == 6)
@@ -481,7 +484,6 @@ public class Game {
             windSpeed = Math.max(MIN_WIND_SPEED, windSpeed - 1);
         if (roll >= 5)
             windSpeed = Math.min(MAX_WIND_SPEED, windSpeed + 1);
-        // --
     }
 
 
@@ -490,7 +492,7 @@ public class Game {
         final int MIN_MARINES_TO_SET_SAILES = 4;
 
         for (Ship s : ships) {
-            if (s.getParameter(Parameter.IS_WRECK) == Commons.ON) {
+            if (s.isParameter(Parameter.IS_WRECK)) {
                 // par. 15.2
                 s.setRotation(windDirection);
                 Ships.forcedShipMovement(s, ShipMovementMode.MOVE_WRECK_NORMAL);
@@ -505,7 +507,7 @@ public class Game {
 
         // par. 9.6.1
         for (Ship s : ships) {
-            if (!s.isSailesRipped())
+            if (!s.isParameter(Parameter.SAILES_RIPPED))
                 continue;
 
             // par. 9.6.1.3
@@ -549,25 +551,25 @@ public class Game {
             s.prepareForNewTurn();
 
             // par. 14.9
-            if (s.getParameter(Parameter.IS_EXPLOSIVE) == Commons.ON)
+            if (s.isParameter(Parameter.IS_EXPLOSIVE))
                 sinkShip(s, DestroyShipMode.BLOWUP);
             // --
 
-            if (s.isPullOnAnchorAttemptCarried()) {
-                s.setPullOnAnchorAttemptCarried(false);
+            if (s.isParameter(Parameter.PULL_ON_ANCHOR_ATTEMPT_CARRIED)) {
+                s.clearParameter(Parameter.SAILES_RIPPED);
                 // par. 17.10.2, 17.10.3
                 if (Ships.rollDice(s, s.getOwner()) + Ships.rollDice(s, s.getOwner()) < s.getMast()) {
                     MainBoard.addMessage("Ship #" + s.getID() + " escaped from treachous waters!\n");
                     s.escapeFromShallow();
                 } else {
                     MainBoard.addMessage("Ship #" + s.getID() + " failed to escape from treachous waters!\n");
-                    s.setActionsOver();
+                    s.setParameter(Parameter.ACTIONS_OVER);
                 }
                 // --
             }
 
-            if (s.isTowByOneAttemptCarried()) {
-                s.setTowByOneAttemptCarried(false);
+            if (s.isParameter(Parameter.TOWED_BY_ONE_ATTEMPT_CARRIED)) {
+                s.clearParameter(Parameter.TOWED_BY_ONE_ATTEMPT_CARRIED);
 
                 tugID = s.getTowedBy();
                 if (s.getTowedBy() != null) {
@@ -615,7 +617,7 @@ public class Game {
             }
             // --
 
-            if (s.getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON) {
+            if (s.isParameter(Parameter.IS_IMMOBILIZED)) {
                 Ships.damageHull(s, 1); // par. 17.4
                 // par. 17.5
                 if (windSpeed > 8)

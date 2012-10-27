@@ -15,17 +15,18 @@ import sfmainframe.ship.marines.MarinesCompartment;
 
 public class MarinesSection {
 
-    Map<MarinesCompartment, ReusableMap<Player>> marines;
+    private final Map<MarinesCompartment, ReusableMap<Player>> marines;
+    private final Map<MarinesCompartment, Map<Player, CommanderState>> commanders;
 
-    private CommanderState[][] commanders = new CommanderState[MarinesCompartment.getShipCompartments().length][Commons.PLAYERS_MAX];
 
-
-    public MarinesSection() {
-
+    private MarinesSection() {
         marines = new HashMap<MarinesCompartment, ReusableMap<Player>>();
+        commanders = new HashMap<MarinesCompartment, Map<Player, CommanderState>>();
 
-        for (MarinesCompartment mc : MarinesCompartment.getShipCompartments())
+        for (MarinesCompartment mc : MarinesCompartment.getShipCompartments()) {
             marines.put(mc, new ReusableMap<Player>(Player.class, Player.getValues()));
+            commanders.put(mc, new HashMap<Player, CommanderState>());
+        }
 
         for (MarinesCompartment mc : MarinesCompartment.getShipCompartments())
             for (Player p : Player.getValues())
@@ -43,23 +44,25 @@ public class MarinesSection {
      */
     public void clear(Player player, MarinesCompartment location) {
         marines.get(location).getElement(player).clear();
-        commanders[player.ordinal()][location.ordinal()] = CommanderState.NOT_THERE;
+        commanders.get(location).put(player, CommanderState.NOT_THERE);
     }
 
 
     public MarinesSection(MarinesSection ms) {
+        this();
 
-        marines = new HashMap<MarinesCompartment, ReusableMap<Player>>();
         for (MarinesCompartment mc : MarinesCompartment.getShipCompartments()) {
             for (Player p : Player.getValues()) {
                 marines.get(mc).getElement(p).copy(ms.marines.get(mc).getElement(p));
-                commanders[mc.ordinal()][p.ordinal()] = ms.commanders[mc.ordinal()][p.ordinal()];
+                commanders.get(mc).put(p, ms.commanders.get(mc).get(p));
             }
         }
     }
 
 
     public MarinesSection(ShipClass sc, Player shipOwner) {
+        this();
+
         marines.get(MarinesCompartment.DECK).getElement(shipOwner).setReady(sc.getCrewDeckMax());
         marines.get(MarinesCompartment.BATTERIES).getElement(shipOwner).setReady(sc.getCrewMax() - sc.getCrewDeckMax());
     }
@@ -80,7 +83,7 @@ public class MarinesSection {
 
 
     public CommanderState getCommanderState(Player player, MarinesCompartment location) {
-        return commanders[location.ordinal()][player.ordinal()];
+        return commanders.get(location).get(player);
     }
 
 
@@ -94,15 +97,15 @@ public class MarinesSection {
 
 
     public void setCommander(Player player, MarinesCompartment location, CommanderState state) {
-        commanders[player.ordinal()][location.ordinal()] = state;
+        commanders.get(location).put(player, state);
     }
 
 
     public void moveCommander(Player player, MarinesCompartment source, MarinesCompartment destination) {
         if (source != MarinesCompartment.SHIP_X)
-            commanders[player.ordinal()][source.ordinal()] = CommanderState.NOT_THERE;
+            commanders.get(source).put(player, CommanderState.NOT_THERE);
         if (destination != MarinesCompartment.SHIP_X)
-            commanders[player.ordinal()][destination.ordinal()] = CommanderState.USED;
+            commanders.get(destination).put(player, CommanderState.USED);
     }
 
 
@@ -116,10 +119,6 @@ public class MarinesSection {
      *         dowódcą/bez dowódcy
      */
     public Object[] killMarines(Player player, MarinesCompartment location, int amount, KillingMode mode) {
-        /*
-         * #return: faktyczna ilosc zabitych marynarzy (nie wliczajac dowodcy)
-         */
-
         Object[] ret = new Object[2];
         ret[1] = KillingMode.WITHOUT_COMMANDER;
 
@@ -144,9 +143,9 @@ public class MarinesSection {
         marines.get(location).getElement(player).setUsed(0);
 
         // 5.3.3
-        if (commanders[location.ordinal()][player.ordinal()] != CommanderState.NOT_THERE) {
+        if (commanders.get(location).get(player) != CommanderState.NOT_THERE) {
             if (mode == KillingMode.WITH_COMMANDER)
-                commanders[location.ordinal()][player.ordinal()] = CommanderState.NOT_THERE;
+                commanders.get(location).put(player, CommanderState.NOT_THERE);
             ret[0] = amount;
             ret[1] = KillingMode.WITH_COMMANDER;
             return ret;
@@ -159,11 +158,10 @@ public class MarinesSection {
 
 
     public boolean isCommanderOnboard(Player player) {
-        if (player == Player.NONE)
-            return false;
+        assert (player != Player.NONE);
 
-        for (int location = 0; location < MarinesCompartment.getSize(); location++)
-            if (commanders[location][player.ordinal()] != CommanderState.NOT_THERE)
+        for (MarinesCompartment mc : MarinesCompartment.getShipCompartments())
+            if (commanders.get(mc).get(player) != CommanderState.NOT_THERE)
                 return true;
         return false;
     }
@@ -178,8 +176,8 @@ public class MarinesSection {
         for (MarinesCompartment mc : MarinesCompartment.getShipCompartments()) {
             for (Player p : Player.getValues()) {
                 marines.get(mc).refresh();
-                if (commanders[mc.ordinal()][p.ordinal()] == CommanderState.USED)
-                    commanders[mc.ordinal()][p.ordinal()] = CommanderState.READY;
+                if (commanders.get(mc).get(p) == CommanderState.USED)
+                    commanders.get(mc).put(p, CommanderState.READY);
             }
         }
     }
@@ -193,9 +191,10 @@ public class MarinesSection {
             }
         }
 
-        for (int i = 0; i < MarinesCompartment.getSize(); i++)
-            for (int j = 0; j < Commons.PLAYERS_MAX; j++)
-                dos.writeInt(commanders[i][j].ordinal());
+        // FIXME
+        // for (int i = 0; i < MarinesCompartment.getSize(); i++)
+        // for (int j = 0; j < Commons.PLAYERS_MAX; j++)
+        // dos.writeInt(commanders[i][j].ordinal());
     }
 
 
@@ -207,8 +206,9 @@ public class MarinesSection {
             }
         }
 
-        for (int i = 0; i < MarinesCompartment.getSize(); i++)
-            for (int j = 0; j < Commons.PLAYERS_MAX; j++)
-                commanders[i][j] = CommanderState.valueOf(dis.readInt());
+        // FIXME
+        // for (int i = 0; i < MarinesCompartment.getSize(); i++)
+        // for (int j = 0; j < Commons.PLAYERS_MAX; j++)
+        // commanders[i][j] = CommanderState.valueOf(dis.readInt());
     }
 }

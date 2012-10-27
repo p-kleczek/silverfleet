@@ -70,11 +70,6 @@ public class Ship {
     private MovesQueueCode movesQueueCode;
 
     /**
-     * TODO: co to robi?
-     */
-    private boolean actionsOver;
-
-    /**
      * Ship's durability.
      */
     private int durability;
@@ -121,18 +116,17 @@ public class Ship {
      */
     private Map<MarinesCompartment, Map<Player, Integer>> boardingActionUsed;
 
-    private final EnumSet<Parameter> parameters;
-//    private final Map<Parameter, Integer> parameters;
-
     /**
-     * Flag indicating whether sails are ripped.
+     * Descripes state of the ship (eg. is a wreck, are explosives set etc.)
      */
-    private boolean sailesRipped;
+    private final Set<Parameter> parameters;
 
     /**
      * Number of marines on board when sails were ripped.
      */
-    private final Map<Player, Integer> marinesOnBoardWhileSailesRipped;
+    private final Map<Player, Integer> marinesOnBoardWhileSailesRipped; // XXX:
+                                                                        // non-final,
+                                                                        // immutable?
 
     /**
      * Ship which is a tug for this ship.
@@ -145,27 +139,9 @@ public class Ship {
     private Ship towOther;
 
     /**
-     * Flag indicating whether a shallow escape attempt has already been made in
-     * the current turn.
-     */
-    private boolean turnEscapeAttemptUsed;
-
-    /**
      * Escape attempt used during the current stuck.
      */
     private final Set<ShallowAttempt> escapeAttemptsUsed;
-
-    /**
-     * Flag indicating whether there was a "pull on anchor" escape attempt made
-     * in the previous turn.
-     */
-    private boolean pullOnAnchorAttemptCarried;
-
-    /**
-     * Flag indicating whether there was a "towed by one" escape attempt made in
-     * the previous turn.
-     */
-    private boolean towedByOneAttemptCarried;
 
     /**
      * Position of the ship in the previous turn.
@@ -177,6 +153,9 @@ public class Ship {
      */
     private final Map<Ship, CoupleReason> shipsCoupled;
 
+    /**
+     * Fulfilled conditions which result in gain in happiness.
+     */
     private final Set<Happiness> gainedHappiness;
 
 
@@ -190,7 +169,6 @@ public class Ship {
         position = Coordinate.dummy;
         rotation = RotateDirection.N;
         movesQueueCode = MovesQueueCode.NEW;
-        actionsOver = Boolean.FALSE;
 
         durability = _class.getDurabilityMax();
         happiness = 0;
@@ -214,11 +192,8 @@ public class Ship {
 
         boardingFirstTurn = BoardingFirstTurn.NOT_APPLICABLE;
 
-        parameters = new HashMap<Parameter, Integer>();
-        for (Parameter parameter : Parameter.values())
-            parameters.put(parameter, Commons.OFF);
+        parameters = EnumSet.noneOf(Parameter.class);
 
-        sailesRipped = false;
         marinesOnBoardWhileSailesRipped = new HashMap<Player, Integer>();
         for (Player p : Player.getValues())
             marinesOnBoardWhileSailesRipped.put(p, 0);
@@ -226,10 +201,7 @@ public class Ship {
         towedBy = null;
         towOther = null;
 
-        turnEscapeAttemptUsed = false;
         escapeAttemptsUsed = new HashSet<ShallowAttempt>();
-        pullOnAnchorAttemptCarried = false;
-        towedByOneAttemptCarried = false;
         previousTurnPosition = new Coordinate(Commons.NIL, Commons.NIL);
 
         shipsCoupled = new HashMap<Ship, CoupleReason>();
@@ -248,7 +220,6 @@ public class Ship {
         position = ship.position;
         rotation = ship.rotation;
         movesQueueCode = ship.movesQueueCode;
-        actionsOver = ship.actionsOver;
 
         durability = ship.durability;
         happiness = ship.happiness;
@@ -264,18 +235,14 @@ public class Ship {
 
         boardingFirstTurn = ship.boardingFirstTurn;
 
-        parameters = new HashMap<Parameter, Integer>(ship.parameters);
+        parameters = EnumSet.copyOf(ship.parameters);
 
-        sailesRipped = ship.sailesRipped;
         marinesOnBoardWhileSailesRipped = new HashMap<Player, Integer>(ship.marinesOnBoardWhileSailesRipped);
 
         towedBy = ship.towedBy;
         towOther = ship.towOther;
 
-        turnEscapeAttemptUsed = ship.turnEscapeAttemptUsed;
         escapeAttemptsUsed = new HashSet<ShallowAttempt>(ship.escapeAttemptsUsed);
-        pullOnAnchorAttemptCarried = ship.pullOnAnchorAttemptCarried;
-        towedByOneAttemptCarried = ship.towedByOneAttemptCarried;
         previousTurnPosition = ship.previousTurnPosition;
 
         shipsCoupled = new HashMap<Ship, CoupleReason>(ship.shipsCoupled);
@@ -302,7 +269,6 @@ public class Ship {
         rotation = RotateDirection.valueOf(data_input.readInt());
 
         movesQueueCode = MovesQueueCode.valueOf(data_input.readInt());
-        actionsOver = data_input.readBoolean();
         distanceMoved = data_input.readInt();
 
         durability = data_input.readInt();
@@ -327,11 +293,10 @@ public class Ship {
                 boardingActionUsed.get(mc).put(p, data_input.readInt());
         }
 
-        parameters = new HashMap<Parameter, Integer>();
-        for (Parameter p : Parameter.values())
-            parameters.put(p, data_input.readInt());
-
-        sailesRipped = data_input.readBoolean();
+        // FIXME: odczyt ilości?
+        parameters = EnumSet.noneOf(Parameter.class);
+        // for (Parameter p : Parameter.values())
+        // parameters.add(p, data_input.readInt());
 
         marinesOnBoardWhileSailesRipped = new HashMap<Player, Integer>();
         for (Player p : Player.getValues())
@@ -342,13 +307,10 @@ public class Ship {
         // towedBy = data_input.readInt();
         // towOther = data_input.readInt();
 
-        turnEscapeAttemptUsed = data_input.readBoolean();
         escapeAttemptsUsed = new HashSet<ShallowAttempt>();
         dummy = data_input.readInt();
         for (int i = 0; i < dummy; i++)
             escapeAttemptsUsed.add(ShallowAttempt.valueOf(data_input.readUTF()));
-        pullOnAnchorAttemptCarried = data_input.readBoolean();
-        towedByOneAttemptCarried = data_input.readBoolean();
 
         dummy = data_input.readInt();
         previousTurnPosition.set(dummy, data_input.readInt());
@@ -411,16 +373,6 @@ public class Ship {
     }
 
 
-    public Boolean isActionsOver() {
-        return actionsOver;
-    }
-
-
-    public void setActionsOver() {
-        actionsOver = Boolean.TRUE;
-    }
-
-
     public int getDurability() {
         return durability;
     }
@@ -470,16 +422,6 @@ public class Ship {
     }
 
 
-    public boolean isTurnEscapeAttemptUsed() {
-        return turnEscapeAttemptUsed;
-    }
-
-
-    public void setTurnEscapeAttemptUsed(boolean value) {
-        turnEscapeAttemptUsed = value;
-    }
-
-
     public boolean isEscapeAttemptUsed(ShallowAttempt type) {
         return escapeAttemptsUsed.contains(type);
     }
@@ -510,13 +452,18 @@ public class Ship {
     }
 
 
-    public int getParameter(Parameter type) {
-        return parameters.get(type);
+    public boolean isParameter(Parameter type) {
+        return parameters.contains(type);
     }
 
 
-    public void setParameter(Parameter type, int value) {
-        parameters.put(type, value);
+    public void setParameter(Parameter type) {
+        parameters.add(type);
+    }
+
+
+    public void clearParameter(Parameter type) {
+        parameters.remove(type);
     }
 
 
@@ -634,7 +581,7 @@ public class Ship {
     }
 
 
-    // FIXME: brzydko wygląda
+    // FIXME: "return Object[]" brzydko wygląda
     public Object[] killMarines(Player player, MarinesCompartment location, int amount, KillingMode mode) {
         return marinesSection.killMarines(player, location, amount, mode);
     }
@@ -645,14 +592,9 @@ public class Ship {
     }
 
 
-    public boolean isSailesRipped() {
-        return sailesRipped;
-    }
-
-
     public void ripSailes() {
-        sailesRipped = true;
-        parameters.put(Parameter.IS_WRECK, Commons.ON);
+        setParameter(Parameter.SAILES_RIPPED);
+        setParameter(Parameter.IS_WRECK);
         setHappiness(0);
         for (Player p : Player.getValues()) {
             marinesOnBoardWhileSailesRipped.put(p, getMarinesNumber(p, MarinesCompartment.DECK, Commons.BOTH));
@@ -749,8 +691,8 @@ public class Ship {
 
 
     public void setSails() {
-        sailesRipped = false;
-        setParameter(Parameter.IS_WRECK, Commons.OFF);
+        clearParameter(Parameter.SAILES_RIPPED);
+        clearParameter(Parameter.IS_WRECK);
         for (Player p : Player.getValues())
             marinesOnBoardWhileSailesRipped.put(p, 0);
     }
@@ -763,7 +705,7 @@ public class Ship {
 
 
     public int escapeFromBoarding() {
-        shipsCoupled.clear();
+        // shipsCoupled.clear();
         // TODO: wtf?
         return Commons.NIL;
     }
@@ -771,12 +713,13 @@ public class Ship {
 
     public boolean checkEscapeAttempt(ShallowAttempt type) {
         // par. 17.6
-        if (turnEscapeAttemptUsed || escapeAttemptsUsed.contains(type))
+        if (isParameter(Parameter.TURN_ESCAPE_ATTEMPT_USED) || escapeAttemptsUsed.contains(type))
             return false;
         // --
 
         // Nie można przeprowadzać dwóch prób równocześnie.
-        if (pullOnAnchorAttemptCarried || towedByOneAttemptCarried)
+        if (isParameter(Parameter.PULL_ON_ANCHOR_ATTEMPT_CARRIED)
+                || isParameter(Parameter.TOWED_BY_ONE_ATTEMPT_CARRIED))
             return false;
 
         // par. 17.8.1
@@ -803,7 +746,7 @@ public class Ship {
 
 
     public void makeEscapeAttempt(ShallowAttempt type) {
-        turnEscapeAttemptUsed = true; // par. 17.6
+        setParameter(Parameter.TURN_ESCAPE_ATTEMPT_USED); // par. 17.6
 
         escapeAttemptsUsed.add(type);
 
@@ -815,11 +758,11 @@ public class Ship {
             cannonSection.clear();
             break;
         case PULL_ANCHOR:
-            actionsOver = Boolean.TRUE; // par. 17.10.1
-            pullOnAnchorAttemptCarried = true;
+            setParameter(Parameter.ACTIONS_OVER); // par. 17.10.1
+            setParameter(Parameter.PULL_ON_ANCHOR_ATTEMPT_CARRIED);
             break;
         case TOW_BY_ONE:
-            towedByOneAttemptCarried = true;
+            setParameter(Parameter.TOWED_BY_ONE_ATTEMPT_CARRIED);
             break;
         }
     }
@@ -850,8 +793,8 @@ public class Ship {
     }
 
 
-    public int destroyCannon(GunCompartment location, Gun _type, int _state) throws IllegalArgumentException {
-        return cannonSection.destroyCannon(location, _type, _state);
+    public void destroyCannon(GunCompartment location, Gun _type, int _state) throws IllegalArgumentException {
+        cannonSection.destroyCannon(location, _type, _state);
     }
 
 
@@ -875,30 +818,8 @@ public class Ship {
     }
 
 
-    public void setPullOnAnchorAttemptCarried(boolean state) {
-        pullOnAnchorAttemptCarried = state;
-    }
-
-
-    public boolean isPullOnAnchorAttemptCarried() {
-        return pullOnAnchorAttemptCarried;
-    }
-
-
-    public void setTowByOneAttemptCarried(boolean state) {
-        towedByOneAttemptCarried = state;
-    }
-
-
-    public boolean isTowByOneAttemptCarried() {
-        return towedByOneAttemptCarried;
-    }
-
-
     public boolean isOnGameBoard() {
-        if (!position.isValid())
-            return false;
-        if (!isOnGameBoard() || parameters.get(Parameter.IS_SUNK) == Commons.ON)
+        if (!position.isValid() || isParameter(Parameter.IS_SUNK))
             return false;
 
         return true;
@@ -907,7 +828,7 @@ public class Ship {
 
     public void prepareForNewTurn() {
         movesQueueCode = MovesQueueCode.NEW;
-        actionsOver = Boolean.FALSE;
+        clearParameter(Parameter.ACTIONS_OVER);
 
         helm.refresh();
         distanceMoved = 0;
@@ -921,7 +842,7 @@ public class Ship {
                 boardingActionUsed.get(mc).put(p, 0);
 
         previousTurnPosition = position;
-        turnEscapeAttemptUsed = false;
+        clearParameter(Parameter.TURN_ESCAPE_ATTEMPT_USED);
     }
 
 
@@ -980,7 +901,6 @@ public class Ship {
         data_output.writeInt(rotation.ordinal());
 
         data_output.writeInt(movesQueueCode.ordinal());
-        data_output.writeBoolean(actionsOver);
         data_output.writeInt(distanceMoved);
 
         data_output.writeInt(durability);
@@ -1000,10 +920,9 @@ public class Ship {
                 data_output.writeInt(boardingActionUsed.get(mc).get(p));
         }
 
-        for (Parameter p : Parameter.values())
-            data_output.writeInt(parameters.get(p));
-
-        data_output.writeBoolean(sailesRipped);
+        // FIXME: zapis
+        // for (Parameter p : Parameter.values())
+        // data_output.writeInt(parameters.get(p));
 
         for (Player p : Player.getValues())
             data_output.writeInt(marinesOnBoardWhileSailesRipped.get(p));
@@ -1011,12 +930,9 @@ public class Ship {
         data_output.writeInt(towedBy.getID());
         data_output.writeInt(towOther.getID());
 
-        data_output.writeBoolean(turnEscapeAttemptUsed);
         data_output.writeInt(escapeAttemptsUsed.size());
         for (ShallowAttempt sa : escapeAttemptsUsed)
             data_output.writeUTF(sa.name());
-        data_output.writeBoolean(pullOnAnchorAttemptCarried);
-        data_output.writeBoolean(towedByOneAttemptCarried);
         data_output.writeInt(previousTurnPosition.getA());
         data_output.writeInt(previousTurnPosition.getB());
 
@@ -1042,11 +958,11 @@ public class Ship {
         // --
 
         // par. 17.2
-        if (getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON)
+        if (isParameter(Parameter.IS_IMMOBILIZED))
             return new Range(0, 0);
         // --
 
-        if (getParameter(Parameter.IS_WRECK) == Commons.ON || towedByRotation != null) {
+        if (isParameter(Parameter.IS_WRECK) || towedByRotation != null) {
             return new Range(0, 0);
         }
 
@@ -1084,16 +1000,16 @@ public class Ship {
 
 
     public void escapeFromShallow() {
-        setParameter(Parameter.IS_IMMOBILIZED, Commons.OFF);
-        setTurnEscapeAttemptUsed(false);
+        clearParameter(Parameter.IS_IMMOBILIZED);
+        clearParameter(Parameter.TURN_ESCAPE_ATTEMPT_USED);
         clearEscapeAttemptUsed();
-        setPullOnAnchorAttemptCarried(false);
-        setTowByOneAttemptCarried(false);
+        clearParameter(Parameter.PULL_ON_ANCHOR_ATTEMPT_CARRIED);
+        clearParameter(Parameter.TOWED_BY_ONE_ATTEMPT_CARRIED);
     }
 
 
     public void plantExplosives() {
-        setParameter(Parameter.IS_EXPLOSIVE, Commons.ON);
+        setParameter(Parameter.IS_EXPLOSIVE);
     }
 
 
@@ -1122,11 +1038,7 @@ public class Ship {
         if (marinesTotal < getShipClass().getCrewMax())
             price -= getShipClass().getCrewMax() - marinesTotal;
 
-        // XXX: dobre to (NIL)?
-        if (price < 0)
-            return Commons.NIL;
-        else
-            return price;
+        return price;
     }
 
 }

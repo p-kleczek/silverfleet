@@ -1156,7 +1156,7 @@ public class MainBoard {
 			sm = new SpinnerNumberModel(0, game.checkAngleToRotate(selectedShipID).getA(), game.checkAngleToRotate(
 					selectedShipID).getB(), 1);
 			angleSpinner.setModel(sm);
-			sm = new SpinnerNumberModel(0, 0, game.checkDistanceToMove(selectedShipID), 1);
+			sm = new SpinnerNumberModel(0, 0, game.getDistanceToMove(selectedShipID), 1);
 			distanceSpinner.setModel(sm);
 		}
 

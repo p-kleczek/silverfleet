@@ -48,7 +48,15 @@ public final class Coordinate {
     public Coordinate diff(Coordinate c) {
         return new Coordinate(A - c.A, B - c.B);
     }
+    
+    public Coordinate mul(int k) {
+        return new Coordinate(A*k, B*k);
+    }
 
+    public int dist(Coordinate c) {
+        Coordinate d = this.diff(c);
+        return Math.max(Math.abs(d.A), Math.abs(B));
+    }
 
     public boolean isValid() {
         return (A < 0 || B < 0);

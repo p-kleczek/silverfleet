@@ -70,17 +70,14 @@ public class CannonSection {
     }
 
 
-    // FIXME : zwracanie struktury
-    public int destroyCannon(GunCompartment location, Gun type, int _state) throws IllegalArgumentException {
+    public void destroyCannon(GunCompartment location, Gun type, int _state) {
         if (_state == Commons.READY || _state == Commons.BOTH) {
             assert (cannons.get(location).getElement(type).getReady() > 0);
             cannons.get(location).getElement(type).modifyReady(-1);
-            return Commons.READY;
         }
 
         assert (cannons.get(location).getElement(type).getUsed() > 0);
         cannons.get(location).getElement(type).modifyUsed(-1);
-        return Commons.USED;
     }
 
 

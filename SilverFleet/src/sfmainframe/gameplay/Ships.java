@@ -12,6 +12,7 @@ import sfmainframe.Dice;
 import sfmainframe.MainBoard;
 import sfmainframe.Player;
 import sfmainframe.PlayerClass;
+import sfmainframe.Range;
 import sfmainframe.board.Board;
 import sfmainframe.board.ObstacleReport;
 import sfmainframe.board.RotateDirection;
@@ -40,13 +41,17 @@ public final class Ships {
     public static final int PREVIOUS_OWNER = -1;
     public static final int COMMANDER_TO_BE_KILLED = 0xAAAA;
 
+    /**
+     * Wind factor modifies the maximal distance a ship can cover in one turn
+     * [8.3].
+     */
     private static final List<Double> WIND_FACTOR = Collections.unmodifiableList(Arrays.asList(new Double[] { 3.5, 5.0,
             7.0 }));
 
     private static Game game;
 
 
-    public static void coupleShips(Ship shipOne, Ship shipTwo, CoupleReason reason) {
+    static void coupleShips(Ship shipOne, Ship shipTwo, CoupleReason reason) {
         MainBoard.addMessage("Ship #" + shipOne.getID() + " and ship #" + shipTwo.getID() + " coupled ("
                 + reason.toString() + ").\n");
 
@@ -55,13 +60,13 @@ public final class Ships {
     }
 
 
-    public static void throwTow(Ship ship) {
+    static void throwTow(Ship ship) {
         Ship s = ship.getTowedBy();
         if (s != null) {
             MainBoard.addMessage("Ship #" + ship.getID() + ": threw tow\n");
             MainBoard.addMessage("Ship #" + s.getID() + ": threw tow\n");
-            s.setTowedBy(null);
-            ship.setTowOther(null);
+            s.setTowOther(null);
+            ship.setTowedBy(null);
             return;
         }
 
@@ -82,12 +87,12 @@ public final class Ships {
      * @param mode
      * @return players who end game
      */
-    public static void sinkShip(Ship ship, DestroyShipMode mode) {
+    static void sinkShip(Ship ship, DestroyShipMode mode) {
 
         MainBoard.addMessage("Ship #" + ship.getID() + " sank!\n");
 
         ship.setPosition(Coordinate.dummy);
-        ship.setParameter(Parameter.IS_SUNK, Commons.ON);
+        ship.setParameter(Parameter.IS_SUNK);
 
         if (mode == DestroyShipMode.BLOWUP)
             blowUpShip(ship);
@@ -98,10 +103,7 @@ public final class Ships {
         throwTow(ship);
 
         // par. 5.3.5
-        for (MarinesCompartment location : MarinesCompartment.values()) {
-            if (location == MarinesCompartment.SHIP_X || location == MarinesCompartment.NONE)
-                continue;
-
+        for (MarinesCompartment location : MarinesCompartment.getShipCompartments()) {
             for (Player player : Player.getValues()) {
                 if (ship.getCommanderState(player, location) != CommanderState.NOT_THERE)
                     game.endPlayerGame(player);
@@ -132,7 +134,7 @@ public final class Ships {
             int dB = crd.getB();
             boolean coupledWithSides = false;
 
-            int angleModifier = Commons.NIL;
+            Integer angleModifier = null;
             RotateDirection rotations[] = { RotateDirection.NE, RotateDirection.SE, RotateDirection.SW,
                     RotateDirection.NW };
 
@@ -160,7 +162,7 @@ public final class Ships {
                     && ship.getRotation() != RotateDirection.SE)
                 angleModifier = 5;
 
-            if (angleModifier != Commons.NIL) {
+            if (angleModifier != null) {
                 for (int dR = 0; dR < 6; dR++) {
                     if (rotations[dR] == RotateDirection.rotate(s.getRotation(), angleModifier)) {
                         coupledWithSides = true;
@@ -321,7 +323,7 @@ public final class Ships {
             return false; // par. 16.4
         if (game.getWindSpeed() > 8)
             return false; // par. 16.10
-        if (tug.isActionsOver())
+        if (tug.isParameter(Parameter.ACTIONS_OVER))
             return false; // par. 16.6
 
         return true;
@@ -369,11 +371,7 @@ public final class Ships {
 
 
     public static boolean destroyCannonIS(Ship ship, GunCompartment location, Gun type, MsgMode mode) {
-        try {
-            ship.destroyCannon(location, type, Commons.BOTH);
-        } catch (IllegalArgumentException e) {
-            return false;
-        }
+        ship.destroyCannon(location, type, Commons.BOTH);
 
         if (mode == MsgMode.ON)
             MainBoard.addMessage("Ship #" + ship + ": " + type.toString() + " cannon from " + location.toString()
@@ -422,8 +420,8 @@ public final class Ships {
             }
 
             ship.setOwner(Player.NONE);
-            ship.setParameter(Parameter.IS_WRECK, Commons.ON); // par.
-                                                               // 15.1
+            ship.setParameter(Parameter.IS_WRECK); // par.
+                                                   // 15.1
             ship.setHappiness(0); // par. 18.8
             MainBoard.addMessage("Ship #" + ship.getID() + ": is now a wreck\n");
 
@@ -494,7 +492,7 @@ public final class Ships {
             playersWhoEndGame.add(ship.getOwner());
 
         ship.setOwner(winner);
-        ship.setParameter(Parameter.IS_WRECK, Commons.OFF);
+        ship.clearParameter(Parameter.IS_WRECK);
 
         MainBoard.addMessage("Ship #" + ship.getID() + ": new owner is " + winner.toString() + "\n");
 
@@ -575,7 +573,7 @@ public final class Ships {
     }
 
 
-    public static Coordinate checkAngleToRotate(Ship ship) {
+    public static Range checkAngleToRotate(Ship ship) {
         RotateDirection rotTowedBy = null;
         RotateDirection rotTowOther = null;
 
@@ -611,7 +609,7 @@ public final class Ships {
                 destroyHelm(aggressor, 1);
 
             aggressor.nextMovementCode(MovementType.END_MOVE); // par.
-                                                              // 11.3
+                                                               // 11.3
             return false;
         }
         // --
@@ -666,10 +664,10 @@ public final class Ships {
 
 
     public static boolean checkIfSetExplosivesPossible(Ship ship, Player player) {
-        if (ship.isActionsOver())
+        if (ship.isParameter(Parameter.ACTIONS_OVER))
             return false;
 
-        if (ship.getParameter(Parameter.IS_EXPLOSIVE) == Commons.ON)
+        if (ship.isParameter(Parameter.IS_EXPLOSIVE))
             return false;
 
         if (game.getCurrentPlayer() != ship.getOwner())
@@ -706,8 +704,8 @@ public final class Ships {
         tug.setTowOther(towed);
         towed.setTowedBy(tug);
 
-        tug.setActionsOver(); // 16.6
-        towed.setActionsOver(); // 16.6
+        tug.setParameter(Parameter.ACTIONS_OVER); // 16.6
+        towed.setParameter(Parameter.ACTIONS_OVER); // 16.6
     }
 
 
@@ -823,7 +821,7 @@ public final class Ships {
         boolean attemptSuccessful = false;
         Player currentPlayer = game.getCurrentPlayer();
 
-        if (ship.getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON) {
+        if (ship.isParameter(Parameter.IS_IMMOBILIZED)) {
             ship.makeEscapeAttempt(type); // par. 17.7
 
             if (type == ShallowAttempt.PULL_ANCHOR || type == ShallowAttempt.TOW_BY_ONE)
@@ -850,10 +848,10 @@ public final class Ships {
 
 
     public static boolean checkIfEscapeAttemptPossible(Ship ship, ShallowAttempt type, Ship towed) {
-        if (ship.getParameter(Parameter.IS_IMMOBILIZED) == Commons.OFF) {
+        if (!ship.isParameter(Parameter.IS_IMMOBILIZED)) {
             // statek taki moze byc tylko holownikiem
             if (type == ShallowAttempt.TOW_BY_ONE) {
-                if (towed.getParameter(Parameter.IS_IMMOBILIZED) == Commons.OFF
+                if (!towed.isParameter(Parameter.IS_IMMOBILIZED)
                         || !checkIfTowable(ship, towed)
                         || !(ship.getMovesQueueCode() == MovesQueueCode.NEW || ship.getMovesQueueCode() == MovesQueueCode.ROTATE))
                     // par. 17.11.1 (ostatni warunek)
@@ -944,7 +942,7 @@ public final class Ships {
         if (one.getCoupleReason(two) != CoupleReason.HANDLING)
             return false;
 
-        if (one.isActionsOver())
+        if (one.isParameter(Parameter.ACTIONS_OVER))
             return false;
 
         return true;
@@ -1014,8 +1012,9 @@ public final class Ships {
         if (!ship.isOnGameBoard())
             return;
 
+        // Storm has an effect on a ship only if 5 or 6 was rolled [9.5]
         if (rollDice(ship, ship.getOwner()) < 5)
-            return; // par. 9.5
+            return;
 
         int eventType = rollDice(ship, ship.getOwner()) + rollDice(ship, ship.getOwner())
                 + rollDice(ship, ship.getOwner());
@@ -1202,7 +1201,6 @@ public final class Ships {
             MainBoard.addMessage("Ship #" + ship.getID() + " escaped.\n");
 
             // par. 5.4.1, 5.4.2
-            ship.setParameter(Parameter.IS_OUTSIDE_MAP, Commons.ON);
             ship.setPosition(Coordinate.dummy);
             // --
 
@@ -1219,7 +1217,6 @@ public final class Ships {
                     // Zakładam, że okręt holowany wypływa poza mapę wraz z
                     // holownikiem.
                     MainBoard.addMessage("Ship #" + shipTowedBy.getID() + " escaped.\n");
-                    shipTowedBy.setParameter(Parameter.IS_OUTSIDE_MAP, Commons.ON);
                     shipTowedBy.setPosition(Coordinate.dummy);
                     throwTow(ship);
                 }
@@ -1259,7 +1256,7 @@ public final class Ships {
                     || ship.getLoad(CargoType.SILVER) != 0 && rollDice(ship, currentPlayer) > 2) {
 
                 MainBoard.addMessage("Ship #" + ship.getID() + " ran aground.\n");
-                ship.setParameter(Parameter.IS_IMMOBILIZED, Commons.ON);
+                ship.setParameter(Parameter.IS_IMMOBILIZED);
                 ship.nextMovementCode(MovementType.END_MOVE);
                 ship.modifyHappiness(-1); // par. 17.3
 
@@ -1335,7 +1332,7 @@ public final class Ships {
                 if (shipTowedBy.getLoad(CargoType.SILVER) == 0 && rollDice(ship, currentPlayer) > 4
                         || shipTowedBy.getLoad(CargoType.SILVER) != 0 && rollDice(ship, currentPlayer) > 2) {
                     MainBoard.addMessage("Ship #" + shipTowedBy.getID() + " ran aground.\n");
-                    shipTowedBy.setParameter(Parameter.IS_IMMOBILIZED, Commons.ON);
+                    shipTowedBy.setParameter(Parameter.IS_IMMOBILIZED);
                     shipTowedBy.modifyHappiness(-1); // par. 17.3
                     ranAground = true;
                 }
@@ -1464,8 +1461,8 @@ public final class Ships {
         }
 
         // par. 15.6 (jedynie huragan może zepchnąć wrak z mielizny)
-        if (mode == ShipMovementMode.MOVE_WRECK_NORMAL && ship.getParameter(Parameter.IS_WRECK) == Commons.ON
-                && ship.getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON)
+        if (mode == ShipMovementMode.MOVE_WRECK_NORMAL && ship.isParameter(Parameter.IS_WRECK)
+                && ship.isParameter(Parameter.IS_IMMOBILIZED))
             return MovementEvent.NONE;
         // --
 
@@ -1474,7 +1471,7 @@ public final class Ships {
             MainBoard.setSelectedShip(null, Tabs.MOVEMENT);
 
             // par. 15.4
-            if (ship.getParameter(Parameter.IS_WRECK) == Commons.ON) {
+            if (ship.isParameter(Parameter.IS_WRECK)) {
                 sinkShip(ship, DestroyShipMode.SINK);
                 return MovementEvent.SUNK;
             }
@@ -1504,9 +1501,9 @@ public final class Ships {
             // par. 15.5, 17.1
             if (ship.getLoad(CargoType.SILVER) == 0 && rollDice(ship, ship.getOwner()) > 4
                     || ship.getLoad(CargoType.SILVER) != 0 && rollDice(ship, ship.getOwner()) > 2
-                    || ship.getParameter(Parameter.IS_WRECK) == Commons.ON) {
+                    || ship.isParameter(Parameter.IS_WRECK)) {
                 MainBoard.addMessage("Ship #" + ship.getID() + ": ran aground.\n");
-                ship.setParameter(Parameter.IS_IMMOBILIZED, Commons.ON);
+                ship.setParameter(Parameter.IS_IMMOBILIZED);
                 ship.modifyHappiness(-1); // par. 17.3
             }
         } else if (report.hexTerrainType == Terrain.ISLAND) {
@@ -1514,7 +1511,7 @@ public final class Ships {
             return MovementEvent.SUNK;
         } else {
             // par. 17.14
-            if (ship.getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON)
+            if (ship.isParameter(Parameter.IS_IMMOBILIZED))
                 ship.escapeFromShallow();
             // --
         }
@@ -1649,92 +1646,91 @@ public final class Ships {
     }
 
 
-    public static int checkDistanceToMove(Ship ship) {
-        /*
-         * Funkcja zwraca ilość pól możliwych do przebycia przez jednostkę z
-         * uwzględnieniem przeszkód terenowych, pól graczy itp.
-         */
-
+    /**
+     * <p>
+     * The maximal distance is calculated in such a way that it is not possible
+     * to eg. hit a rock within one "move" operation. An additional
+     * "confirmation" is required.
+     * 
+     * 
+     * @param ship
+     * @return number of hexes a ship can conver (taking various obstacles into
+     *         account)
+     */
+    public static int getDistanceToMove(Ship ship) {
         Player currentPlayer = game.getCurrentPlayer();
 
         int maxDistance = 0;
 
         ObstacleReport report = new ObstacleReport();
-        Player previousHexOwner = Player.NONE; // właściciel poprzednio
-                                               // sprawdzanego pola
-        Terrain previousHexTerrain = Terrain.WATER; // typ terenu poprzednio
-        // sprawdzonego pola
 
-        int signA = 0; // Ak-Ap (zakładajc ruch o jedno pole)
-        int signB = 0; // Bk-Bp (zakładajc ruch o jedno pole)
+        // Owner of the previously checked hex.
+        Player previousHexOwner = Player.NONE;
+        // Terrain type of the previously checked hex.
+        Terrain previousHexTerrain = Terrain.WATER;
 
-        int shiftA = 0; // signA*distance (0 < distance <= maxDistance)
-        int shiftB = 0; // shiftB*distance (0 < distance <= maxDistance)
-
+        Coordinate unitShift;
+        Coordinate newPosition = Coordinate.dummy;
         Coordinate position = ship.getPosition();
         RotateDirection rotation = ship.getRotation();
-        int crdA = position.getA();
-        int crdB = position.getB();
 
-        // par. 8.5
-        if (!ship.isMovementPossible(MovementType.TRANSFER))
-            return 0;
-        // --
-
-        // par. 17.2
-        if (ship.getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON)
-            return 0;
-        // --
-
-        if (ship.getParameter(Parameter.IS_WRECK) == Commons.ON || ship.getTowedBy() != null) {
-            return 0;
-        }
-
-        // par. 8.4
+        // It is not possible to sail against the wind. [8.4]
         if (Math.abs(game.getWindDirection().ordinal() - rotation.ordinal()) == 3)
             return 0;
-        // --
 
-        // par. 12.3
+        // It is not possible to interleave movement phase with rotating a ship
+        // [8.5]
+        if (!ship.isMovementPossible(MovementType.TRANSFER))
+            return 0;
+
+        // A ship which ran aground cannot make any movement [17.2].
+        if (ship.isParameter(Parameter.IS_IMMOBILIZED))
+            return 0;
+
+        if (ship.isParameter(Parameter.IS_WRECK) || ship.getTowedBy() != null)
+            return 0;
+
+        // Coupled ships cannot make any move [12.3].
         if (ship.getShipsCoupled().size() > 0)
             return 0;
-        // --
 
-        // par. 2.5, 8.1
-        int maxDist_ = Math.min(ship.getMast(),
-                getAlliedMarinesNumber(ship, currentPlayer, MarinesCompartment.DECK) / 2) + game.getWindSpeed();
+        // Each "knot" requires two marines as a crew [2.5].
+        int currentSpeed = Math.min(ship.getMast(),
+                getAlliedMarinesNumber(ship, currentPlayer, MarinesCompartment.DECK) / 2);
 
-        // par. 16.7
-        if (ship.getTowOther() != null)
-            maxDist_ -= 1;
-        // --
+        // Strength of the wind is summed with the current ship's speed [8.1].
+        int maxDist_ = currentSpeed + game.getWindSpeed();
 
-        // par. 8.2, 8.3
+        // Result of the distance equation is rounded down [8.2].
         int delta = Math.abs(game.getWindDirection().ordinal() - rotation.ordinal());
         if (delta < 3)
             maxDist_ /= WIND_FACTOR.get(delta);
         if (delta > 3)
             maxDist_ /= WIND_FACTOR.get(6 - delta);
-        // -- --
 
-        if (maxDist_ == 0)
+        // During towing the speed of a unit amounts always one hex less than
+        // the speed of a tug [16.7].
+        if (ship.getTowOther() != null)
+            maxDist_ -= 1;
+
+        if (maxDist_ <= 0)
             return 0;
 
         Ship towedShip = ship.getTowOther();
         if (towedShip != null) {
-            // par. 16.12
+            // It is impossible to tow with/against the wind [16.12].
             if (game.getWindDirection().ordinal() - rotation.ordinal() == 0)
                 return 0;
-            // --
 
-            if (towedShip.getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON)
+            if (towedShip.isParameter(Parameter.IS_IMMOBILIZED))
                 return 0;
 
-            // par. 16.5
-            if (!checkIfPlayerControlsLocation(towedShip, currentPlayer, MarinesCompartment.DECK, false))
+            // During towing both decks must be controlled by allied players
+            // [16.5].
+            if (!checkIfPlayerControlsLocation(towedShip, currentPlayer, MarinesCompartment.DECK, true))
                 return 0;
-            // --
 
+            // XXX: o co chodzi?
             if (!checkIfStillTowable(ship, towedShip))
                 return 0;
         }
@@ -1744,88 +1740,73 @@ public final class Ships {
 
         switch (rotation) {
         case N:
-            signA = 0;
-            signB = 1;
+            unitShift = new Coordinate(0, 1);
             break;
         case NE:
-            signA = 1;
-            signB = 1;
+            unitShift = new Coordinate(1, 1);
             break;
         case SE:
-            signA = 1;
-            signB = 0;
+            unitShift = new Coordinate(1, 0);
             break;
         case S:
-            signA = 0;
-            signB = -1;
+            unitShift = new Coordinate(0, -1);
             break;
         case SW:
-            signA = -1;
-            signB = -1;
+            unitShift = new Coordinate(-1, -1);
             break;
         case NW:
-            signA = -1;
-            signB = 0;
+            unitShift = new Coordinate(-1, 0);
             break;
+        default:
+            throw new IllegalArgumentException();
         }
 
         for (maxDistance = 1; maxDistance <= maxDist_; maxDistance++) {
-            shiftA = signA * maxDistance;
-            shiftB = signB * maxDistance;
+            newPosition = position.sum(unitShift.mul(maxDistance));
 
-            // par. 5.4.1
-            if (!Board.isOnMap(new Coordinate(crdA + shiftA, crdB + shiftB))) {
+            // It is possible to escape from map only within a basin controlled
+            // by the player [5.4.1].
+            if (!Board.isOnMap(newPosition)) {
                 if (previousHexOwner != currentPlayer)
                     maxDistance--;
                 break;
             }
-            // --
 
-            /*
-             * Poniższy fragment wynika z konieczność: - rzucenia holu z powodu
-             * internowania bądź zdobycia okrętu holowanego - sprawdzenia, czy
-             * okręt holowany nie utknął na mieliźnie
-             */
+            // If a ship is a tug it is necessary to throw tow if a tug is
+            // captured or interned and to check if a towed ship did not run
+            // aground (if a previous hex is shallow water).
             if (towedShip != null) {
                 if (!game.getPlayer(previousHexOwner).isAlly(towedShip.getOwner()))
                     break;
                 if (previousHexTerrain == Terrain.SHALLOW)
                     break;
             }
-            // --
 
             Player owner = ship.getOwner();
             report = game.getBoard().isObstacleOnPath(position, rotation, maxDistance, owner,
                     game.getPlayer(owner).getAllies());
 
-            /*
-             * Fragment dotyczący pola-mielizny jest konieczny, gdyż w każdej
-             * chwili okręt może utknąć na mieliźnie.
-             */
+            // Require confirmation for ramming, shallow water access etc.
             if (report.hexOwner != Player.NONE || report.hexTerrainType == Terrain.SHALLOW
                     || report.hexTerrainType == Terrain.ISLAND || report.hexShip != null)
                 break;
 
-            previousHexOwner = game.getBoard().getHex(crdA + shiftA, crdB + shiftB).owner;
-            previousHexTerrain = game.getBoard().getHex(crdA + shiftA, crdB + shiftB).terrain;
+            previousHexOwner = game.getBoard().getHex(newPosition).owner;
+            previousHexTerrain = game.getBoard().getHex(newPosition).terrain;
         }
 
-        // modyfikacja "techniczna" (gdy brak przeszkod)
-        if (maxDistance > maxDist_)
-            maxDistance--;
-        // --
+        maxDistance = Math.min(maxDistance, maxDist_);
 
-        // par. 5.3.2
+        // A flag ship cannot escape the board unless it is the last ship on the
+        // board [5.3.2]. It is also not possible to intentionally hit rocks or
+        // ram another ship (if it would result in the flag ship sink).
         if (ship.isCommanderOnboard(currentPlayer) && game.getPlayerFleetSize(currentPlayer) > 1) {
-            if (report.hexTerrainType == Terrain.ISLAND || !Board.isOnMap(new Coordinate(crdA + shiftA, crdB + shiftB)))
+            if (report.hexTerrainType == Terrain.ISLAND || !Board.isOnMap(newPosition))
                 return Math.min(0, maxDistance - 1);
 
-            // Brak możliwości taranowania, gdy spowodowałoby to zatopienie
-            // okrętu flagowego
             if (report.hexShip != null && ship.getDurability() <= report.hexShip.getShipClass().getDurabilityMax() / 2)
                 return Math.min(0, maxDistance - 1);
         }
-        // --
 
         return maxDistance;
     }
@@ -1850,19 +1831,24 @@ public final class Ships {
     }
 
 
+    /**
+     * <p>
+     * Handling is possible only between allied ships [14.1]. Both ships must
+     * stand on adjacent hexes [14.2].
+     * 
+     * @param source
+     * @param player
+     * @param target
+     * @return
+     */
     public static HandlingPartner checkIfHandleable(Ship source, Player player, Ship target) {
-        Coordinate sourcePos = source.getPosition();
-        Coordinate targetPos = target.getPosition();
-
         // par. 14.1
         if (!game.getPlayer(player).isAlly(target.getOwner()))
             return HandlingPartner.NONE;
-        // --
 
         // par. 14.2
-        if (Math.abs(sourcePos.getA() - targetPos.getA()) > 1 || Math.abs(sourcePos.getB() - targetPos.getB()) > 1)
+        if (source.getPosition().dist(target.getPosition()) > 1)
             return HandlingPartner.NONE;
-        // --
 
         if (source.getOwner() == target.getOwner() || target.getOwner() == Player.NONE)
             return HandlingPartner.OWN;
@@ -1889,8 +1875,7 @@ public final class Ships {
         if (Math.abs(game.getWindDirection().ordinal() - ship.getRotation().ordinal()) == 3)
             return false;
 
-        if (ship.getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON
-                || ship.getParameter(Parameter.IS_WRECK) == Commons.ON || ship.getMast() == 0
+        if (ship.isParameter(Parameter.IS_IMMOBILIZED) || ship.isParameter(Parameter.IS_WRECK) || ship.getMast() == 0
                 || ship.getTowedBy() != null)
             return false;
 
@@ -1899,7 +1884,7 @@ public final class Ships {
             if (game.getWindDirection().ordinal() - ship.getRotation().ordinal() == 0)
                 return false; // par. 16.12
 
-            if (towed.getParameter(Parameter.IS_IMMOBILIZED) == Commons.ON)
+            if (towed.isParameter(Parameter.IS_IMMOBILIZED))
                 return false;
 
             if (!checkIfPlayerControlsLocation(towed, currentPlayer, MarinesCompartment.DECK, true))
@@ -1964,7 +1949,7 @@ public final class Ships {
 
 
     public static int getShipDistanceToMove(Ship ship) {
-        return Math.max(0, checkDistanceToMove(ship) - ship.getDistanceMoved());
+        return Math.max(0, getDistanceToMove(ship) - ship.getDistanceMoved());
     }
 
 
