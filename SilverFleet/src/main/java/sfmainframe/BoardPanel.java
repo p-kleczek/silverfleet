@@ -133,8 +133,9 @@ public class BoardPanel extends JPanel {
 
         for (int i = 1; i <= Board.WIDTH_MAX; i++)
             for (int j = 1; j <= Board.HEIGHT_MAX; j++) {
-                hexCoords[i][j].x = (int) ((i - 1) * HEX_WIDTH);
-                hexCoords[i][j].y = (int) ((38 - j) * HEX_HEIGHT + (i - 1) * HEX_HEIGHT / 2);
+            	int x = (int) ((i - 1) * HEX_WIDTH);
+            	int y =  (int) ((38 - j) * HEX_HEIGHT + (i - 1) * HEX_HEIGHT / 2);
+                hexCoords[i][j] = new Point(x, y);
             }
 
         mapImage = ImageIO.read(MainBoard.class.getResource("images/hex.gif"));
@@ -191,47 +192,47 @@ public class BoardPanel extends JPanel {
         Graphics2D g2 = (Graphics2D) g;
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-        /* hexBoard */
+        // hexBoard
         g.drawImage(mapImage, MAP_CORNER.x, MAP_CORNER.y, MAP_CORNER.x + MAP_DIMENSION.width, MAP_CORNER.y
                 + MAP_DIMENSION.height, boardDragOffset.x, boardDragOffset.y, boardDragOffset.x + MAP_DIMENSION.width,
                 boardDragOffset.y + MAP_DIMENSION.height, null);
 
-        /* aBar (upper) */
+        // aBar (upper)
         g.drawImage(aBarImage, MAP_CORNER.x, MAP_CORNER.y - A_BAR_HEIGHT - SEPARATOR, MAP_CORNER.x
                 + MAP_DIMENSION.width, MAP_CORNER.y - SEPARATOR, boardDragOffset.x, 0, boardDragOffset.x
                 + MAP_DIMENSION.width, A_BAR_HEIGHT, null);
 
-        /* aBar (lower) */
+        // aBar (lower)
         g.drawImage(aBarImage, MAP_CORNER.x, MAP_CORNER.y + MAP_DIMENSION.height + SEPARATOR, MAP_CORNER.x
                 + MAP_DIMENSION.width, MAP_CORNER.y + MAP_DIMENSION.height + A_BAR_HEIGHT + SEPARATOR,
                 boardDragOffset.x, 0, boardDragOffset.x + MAP_DIMENSION.width, A_BAR_HEIGHT, null);
 
-        /* bBar (left) */
+        // bBar (left)
         g.drawImage(bBarImage, MAP_CORNER.x - B_BAR_WIDTH - SEPARATOR, MAP_CORNER.y, MAP_CORNER.x - SEPARATOR,
                 MAP_CORNER.y + MAP_DIMENSION.height, 0, (int) (1116 + boardDragOffset.y + BBAR_SHIFT_X
                         * boardDragOffset.x), B_BAR_WIDTH, (int) (1116 + boardDragOffset.y + BBAR_SHIFT_X
                         * boardDragOffset.x + MAP_DIMENSION.height), null);
 
-        /* bBar (right) */
+        // bBar (right)
         g.drawImage(bBarImage, MAP_CORNER.x + MAP_DIMENSION.width + SEPARATOR, MAP_CORNER.y, MAP_CORNER.x
                 + MAP_DIMENSION.width + B_BAR_WIDTH + SEPARATOR, MAP_CORNER.y + MAP_DIMENSION.height, 0,
                 (int) (719 + boardDragOffset.y + BBAR_SHIFT_X * boardDragOffset.x), B_BAR_WIDTH, (int) (719
                         + boardDragOffset.y + BBAR_SHIFT_X * boardDragOffset.x + MAP_DIMENSION.height), null);
 
-        /* wyswietlanie okretow */
+        // wyswietlanie okretow
         g.setClip(MAP_CORNER.x, MAP_CORNER.y, MAP_DIMENSION.width, MAP_DIMENSION.height);
 
         Boolean commanderOnBoard = Boolean.FALSE;
         final Font[] commanderFonts = { new Font("Arial", Font.PLAIN, 12), new Font("Verdana", Font.BOLD, 12) };
 
-        for (int sID = 0; sID < Commons.SHIPS_MAX; sID++) {
+    	// FIXME: ile statków?
+        for (Ship ship : MainBoard.game.getShips()) {
+        	
             commanderOnBoard = Boolean.FALSE;
-            Ship ship = MainBoard.game.getShip(sID);
 
-            Player shipOwner = MainBoard.game.getShip(sID).getOwner();
+            Player shipOwner = ship.getOwner();
             if (shipOwner != Player.NONE
-                    && (MainBoard.game.getShip(sID).getCommanderOnBoardState(shipOwner) == CommanderState.READY || MainBoard.game
-                            .getShip(sID).getCommanderOnBoardState(shipOwner) == CommanderState.USED))
+                    && (ship.getCommanderOnBoardState(shipOwner) == CommanderState.READY || ship.getCommanderOnBoardState(shipOwner) == CommanderState.USED))
                 commanderOnBoard = Boolean.TRUE;
 
             if (!ship.isOnGameBoard())
@@ -240,7 +241,7 @@ public class BoardPanel extends JPanel {
             Color shipColor = Color.red;
 
             // XXX : Map<Player, Color>
-            switch (MainBoard.game.getShip(sID).getOwner()) {
+            switch (ship.getOwner()) {
             case PASADENA:
                 shipColor = Color.green;
                 break;
@@ -270,7 +271,7 @@ public class BoardPanel extends JPanel {
                 break;
             }
 
-            if (MainBoard.getBoardPanelMode() == DisplayMode.DEPLOY_MODE && sID == clipBoardShipID)
+            if (MainBoard.getBoardPanelMode() == DisplayMode.DEPLOY_MODE && ship.getID() == clipBoardShipID)
                 shipColor = Color.red;
 
             Font selectedCommanderFont = commanderOnBoard ? commanderFonts[0] : commanderFonts[1];
@@ -297,7 +298,7 @@ public class BoardPanel extends JPanel {
                 break;
             }
 
-            drawShip(g2, sID, ship.getPosition(), ship.getRotation(), shipColor, selectedCommanderFont, stringOffset);
+            drawShip(g2, ship.getID(), ship.getPosition(), ship.getRotation(), shipColor, selectedCommanderFont, stringOffset);
         }
     }
 
@@ -375,12 +376,12 @@ public class BoardPanel extends JPanel {
                 if (i <= Board.WIDTH_MAX) {
                     if (MainBoard.getBoardPanelMode() == DisplayMode.DEPLOY_MODE) {
                         if (clipBoardShipID == null) {
-                            Integer shipID = MainBoard.game.getBoard().getHex(i - 1, j - 1).ship;
-                            if (shipID != null && MainBoard.isSelectable(shipID)) {
-                                clipBoardShipID = shipID;
-                                MainBoard.setSelectedShip(shipID, Tabs.MOVEMENT);
+                            Ship ship = MainBoard.game.getBoard().getHex(i - 1, j - 1).ship;
+                            if (ship != null && MainBoard.isSelectable(ship.getID())) {
+                                clipBoardShipID = ship.getID();
+                                MainBoard.setSelectedShip(ship, Tabs.MOVEMENT);
                                 repaint();
-                                MainBoard.addMessage("Selected ship: " + shipID + "\n");
+                                MainBoard.addMessage("Selected ship: " + ship.getID() + "\n");
                                 MainBoard.makeHeaderLabel();
                             }
                         } else {
@@ -398,13 +399,14 @@ public class BoardPanel extends JPanel {
                         // mozliwosc operowania tylko w obrebie aktualnie
                         // przetwarzanego statku
                     } else {
-                        Integer shipID = MainBoard.game.getBoard().getHex(i - 1, j - 1).ship;
+                        Ship ship = MainBoard.game.getBoard().getHex(i - 1, j - 1).ship;
+                        Integer shipID = ship.getID();
                         if (shipID == null) {
                             MainBoard.setSelectedShip(null, Tabs.MOVEMENT);
                             MainBoard.addMessage("Selected ship: none\n");
                             MainBoard.makeHeaderLabel();
                         } else {
-                            MainBoard.setSelectedShip(shipID, Tabs.MOVEMENT);
+                            MainBoard.setSelectedShip(ship, Tabs.MOVEMENT);
                             MainBoard.addMessage("Selected ship: " + shipID + "\n");
                             MainBoard.makeHeaderLabel();
                         }

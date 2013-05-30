@@ -50,12 +50,13 @@ import javax.swing.table.DefaultTableCellRenderer;
 import sfmainframe.board.Board;
 import sfmainframe.board.Hex;
 import sfmainframe.board.Terrain;
-import sfmainframe.gameplay.DestroyShipMode;
 import sfmainframe.gameplay.Game;
 import sfmainframe.gameplay.HappinessAction;
 import sfmainframe.gameplay.MovesQueueCode;
+import sfmainframe.gameplay.Ships;
 import sfmainframe.gameplay.Stage;
 import sfmainframe.gui.AboutPanel;
+import sfmainframe.gui.DataExtractors;
 import sfmainframe.gui.DisplayMode;
 import sfmainframe.gui.Tabs;
 import sfmainframe.gui.UpdateMode;
@@ -63,6 +64,7 @@ import sfmainframe.ship.AimPart;
 import sfmainframe.ship.BoardingFirstTurn;
 import sfmainframe.ship.Gun;
 import sfmainframe.ship.GunCompartment;
+import sfmainframe.ship.Happiness;
 import sfmainframe.ship.Parameter;
 import sfmainframe.ship.ShallowAttempt;
 import sfmainframe.ship.Ship;
@@ -109,13 +111,13 @@ public class MainBoard {
 	static JLabel happinessLabel, remainingTimeLabel;
 	static JButton endTurnButton, useHappinessButton, acceptRollButton;
 
-	/* tabbedPane - elements */
+	// tabbedPane - elements
 	// Tab: movement
 	static JPanel movementTabPanel;
 	static JLabel transferLabel, angleLabel, distanceLabel, towingLabel, towIdLabel, shallowLabel;
 	static JButton angleButton, distanceButton, towButton, throwTowButton, makeAttemptButton;
 	static JSpinner angleSpinner, distanceSpinner;
-	static JComboBox towComboBox;
+	static JComboBox<String> towComboBox;
 	static JRadioButton throwGunsRadioButton, pullOnAnchorRadioButton, throwSilverRadioButton, towWithBoatsRadioButton,
 			towOneRadioButton;
 	static ButtonGroup shallowGroup;
@@ -130,7 +132,7 @@ public class MainBoard {
 	static JCheckBox marinesCheckBox, commanderCheckBox;
 	static JSpinner marinesNumberSpinner;
 	static JSeparator marinesSeparator1, marinesSeparator2, marinesSeparator3, marinesSeparator4;
-	static JComboBox destinationShipComboBox, enemyGroupComboBox;
+	static JComboBox<String> destinationShipComboBox, enemyGroupComboBox;
 	static JButton moveMarinesButton, surrenderButton, attackButton, sabotageButton, escapeButton;
 	static ButtonGroup sourceMarinesGroup, destinationMarinesGroup;
 
@@ -150,7 +152,7 @@ public class MainBoard {
 			riggingShootRadioButton, cannonShootRadioButton, hullShootRadioButton, lightAimedShootRadioButton,
 			mediumAimedShootRadioButton, heavyAimedShootRadioButton;
 	static JSeparator shootSeparator1, shootSeparator2, shootSeparator3;
-	static JComboBox targetShipShootComboBox;
+	static JComboBox<String> targetShipShootComboBox;
 	static JButton shootShootButton;
 	static ButtonGroup compartmentShootButtonGroup, ownTypeShootButtonGroup, aimAtShootButtonGroup,
 			aimedTypeShootButtonGroup;
@@ -159,7 +161,7 @@ public class MainBoard {
 	static JPanel cargoTabPanel;
 	static JLabel shipCargoLabel, fromCargoLabel, toCargoLabel, typeCargoLabel, compartmentCargoLabel,
 			targetCompartmentCargoLabel, quantityCargoLabel;
-	static JComboBox shipCargoComboBox;
+	static JComboBox<String> shipCargoComboBox;
 	static JRadioButton cargoFromCargoRadioButton, batteriesFromCargoRadioButton, cargoToCargoRadioButton,
 			batteriesToCargoRadioButton, silverCargoRadioButton, lightCargoRadioButton, mediumCargoRadioButton,
 			bowCargoRadioButton, leftCargoRadioButton, rightCargoRadioButton, sternCargoRadioButton,
@@ -182,9 +184,9 @@ public class MainBoard {
 			happinessBoardingStatsLabel;
 	static JTable cannonsAStatsTable, cannonsBStatsTable, marinesAStatsTable, marinesBStatsTable;
 
-	/* end of tabbedPane elements */
+	// end of tabbedPane elements
 
-	private static Integer selectedShipID = null;
+	private static Ship ship = null;
 	private static ShallowAttempt selectedEscapeType = ShallowAttempt.DROP_CANNONS;
 	private static Integer towShip = null;
 
@@ -249,7 +251,7 @@ public class MainBoard {
 
 
 	public static int getSelectedShipID() {
-		return selectedShipID;
+		return ship.getID();
 	}
 
 
@@ -262,9 +264,9 @@ public class MainBoard {
 	}
 
 
-	public static void setSelectedShip(Ship ship, Tabs tab) {
+	public static void setSelectedShip(Ship _ship, Tabs tab) {
 		tabbedPane.setSelectedIndex(tab.ordinal());
-		selectedShipID = ship.getID();
+		ship = _ship;
 
 		selectedEscapeType = ShallowAttempt.DROP_CANNONS;
 
@@ -295,6 +297,8 @@ public class MainBoard {
 
 
 	private static void updateMovementTab(UpdateMode mode) {
+		
+		
 		boolean tow = false;
 
 		updateFinished = false;
@@ -320,9 +324,10 @@ public class MainBoard {
 		towComboBox.removeAllItems();
 
 		// par. 12.9
-		if (selectedShipID == null
-				|| !game.checkIfPlayerControlsLocation(selectedShipID, game.getCurrentPlayer(),
-						MarinesCompartment.DECK, false) || game.isShipActionsOver(selectedShipID) == Commons.ON) {
+		if (ship == null
+				|| !Ships.checkIfPlayerControlsLocation(ship, game.getCurrentPlayer(),
+								MarinesCompartment.DECK, false)
+				|| ship.isParameter(Parameter.ACTIONS_OVER)) {
 			updateFinished = true;
 			return;
 		}
@@ -339,32 +344,32 @@ public class MainBoard {
 			return;
 		}
 
-		distanceSpinner.setModel(new SpinnerNumberModel(0, 0, game.getShipDistanceToMove(selectedShipID), 1));
-		angleSpinner.setModel(new SpinnerNumberModel(0, game.checkAngleToRotate(selectedShipID).getA(), game
-				.checkAngleToRotate(selectedShipID).getB(), 1));
+		distanceSpinner.setModel(new SpinnerNumberModel(0, 0, Ships.getShipDistanceToMove(ship), 1));
+		angleSpinner.setModel(new SpinnerNumberModel(0, Ships.checkAngleToRotate(ship).getLowerBound(), Ships
+				.checkAngleToRotate(ship).getUpperBound(), 1));
 
 		// lista mozliwych do holowania okretow
 		towComboBox.removeAllItems();
-		for (int i = 0; i < Commons.SHIPS_MAX; i++) {
-			if (i != selectedShipID && game.checkIfTowable(selectedShipID, i))
-				towComboBox.addItem(i + ", " + game.getShip(i).getShipClass());
+		for (Ship s : game.getShips()) {
+			if (s != ship && Ships.checkIfTowable(ship, s))
+				towComboBox.addItem(s.getCaption());
 		}
 
 		// zmiany, gdy okret juz kogos holuje
-		if (game.getShip(selectedShipID).getTowOther() != null) {
+		if (ship.getTowOther() != null) {
 			towComboBox.removeAllItems();
-			towComboBox.addItem(game.getShip(selectedShipID).getTowOther() + ", "
-					+ game.getShip(game.getShip(selectedShipID).getTowOther()).getShipClass().toString());
+			towComboBox.addItem(ship.getTowOther() + ", "
+					+ ship.getTowOther().getShipClass().toString());
 			tow = true;
 		}
-		if (game.getShip(selectedShipID).getTowedBy() != null) {
+		if (ship.getTowedBy() != null) {
 			towComboBox.removeAllItems();
-			towComboBox.addItem(game.getShip(selectedShipID).getTowedBy() + ", "
-					+ game.getShip(game.getShip(selectedShipID).getTowedBy()).getShipClass().toString());
+			towComboBox.addItem(ship.getTowedBy() + ", "
+					+ ship.getTowedBy().getShipClass().toString());
 			tow = true;
 		}
 
-		if (game.checkIfPlayerControlsLocation(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.DECK, false)) {
+		if (Ships.checkIfPlayerControlsLocation(ship, game.getCurrentPlayer(), MarinesCompartment.DECK, false)) {
 			angleButton.setEnabled(true);
 			distanceButton.setEnabled(true);
 			angleSpinner.setEnabled(true);
@@ -381,30 +386,30 @@ public class MainBoard {
 
 		int available = 0;
 
-		if (game.getShipParameter(selectedShipID, Parameter.IS_IMMOBILIZED) == Commons.ON
-				&& game.getShipOwner(selectedShipID) == game.getCurrentPlayer()) {
-			if (game.checkIfEscapeAttemptPossible(selectedShipID, ShallowAttempt.DROP_CANNONS, null)) {
+		if (ship.isParameter(Parameter.IS_IMMOBILIZED)
+				&& ship.getOwner() == game.getCurrentPlayer()) {
+			if (Ships.checkIfEscapeAttemptPossible(ship, ShallowAttempt.DROP_CANNONS, null)) {
 				throwGunsRadioButton.setEnabled(true);
 				available++;
 			}
 
-			if (game.checkIfEscapeAttemptPossible(selectedShipID, ShallowAttempt.PULL_ANCHOR, null)) {
+			if (Ships.checkIfEscapeAttemptPossible(ship, ShallowAttempt.PULL_ANCHOR, null)) {
 				pullOnAnchorRadioButton.setEnabled(true);
 				available++;
 			}
 
-			if (game.checkIfEscapeAttemptPossible(selectedShipID, ShallowAttempt.DROP_SILVER, null)) {
+			if (Ships.checkIfEscapeAttemptPossible(ship, ShallowAttempt.DROP_SILVER, null)) {
 				throwSilverRadioButton.setEnabled(true);
 				available++;
 			}
 
-			if (game.checkIfEscapeAttemptPossible(selectedShipID, ShallowAttempt.TOW_BY_BOATS, null)) {
+			if (Ships.checkIfEscapeAttemptPossible(ship, ShallowAttempt.TOW_BY_BOATS, null)) {
 				towWithBoatsRadioButton.setEnabled(true);
 				available++;
 			}
 		}
 
-		if (game.getShipParameter(selectedShipID, Parameter.IS_IMMOBILIZED) == Commons.OFF) {
+		if (!ship.isParameter(Parameter.IS_IMMOBILIZED)) {
 			if (isTowOneAttemptPossible()) {
 				towOneRadioButton.setEnabled(true);
 				available++;
@@ -462,30 +467,30 @@ public class MainBoard {
 		destinationShipComboBox.removeAllItems();
 
 		// niedostepnosc zakladki "Marines"
-		if (selectedShipID == null) {
+		if (ship == null) {
 			updateFinished = true;
 			return;
 		}
 
 		if (!(game.getStage() == Stage.PLAYERS_MOVES ||
-
+				
 		(game.getStage() == Stage.BOARDING_ACTIONS || game.getStage() == Stage.BOARDING_MOVEMENTS || game.getStage() == Stage.BOARDING_SABOTAGE)
-				&& game.checkIfShipBoarded(selectedShipID, game.getCurrentPlayer()))) {
+				&& Ships.checkIfShipBoarded(ship, game.getCurrentPlayer()))) {
 			updateFinished = true;
 			return;
 		}
 
 		// ustawianie dostepnosci przyciskow
-		if (game.getShipMarines(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.DECK, Commons.BOTH) > 0
-				|| game.getShipCommander(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.DECK) == CommanderState.READY)
+		if (ship.getMarinesNumber(game.getCurrentPlayer(), MarinesCompartment.DECK, Commons.BOTH) > 0
+				|| ship.getCommanderState(game.getCurrentPlayer(), MarinesCompartment.DECK) == CommanderState.READY)
 			sourceDeckRadioButton.setEnabled(true);
 
-		if (game.getShipMarines(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.INMOVE, Commons.BOTH) > 0
-				|| game.getShipCommander(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.INMOVE) == CommanderState.READY)
+		if (ship.getMarinesNumber(game.getCurrentPlayer(), MarinesCompartment.INMOVE, Commons.BOTH) > 0
+				|| ship.getCommanderState(game.getCurrentPlayer(), MarinesCompartment.INMOVE) == CommanderState.READY)
 			sourceInMoveRadioButton.setEnabled(true);
 
-		if (game.getShipMarines(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.BOTH) > 0
-				|| game.getShipCommander(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.BATTERIES) == CommanderState.READY)
+		if (ship.getMarinesNumber(game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.BOTH) > 0
+				|| ship.getCommanderState(game.getCurrentPlayer(), MarinesCompartment.BATTERIES) == CommanderState.READY)
 			sourceBatteriesRadioButton.setEnabled(true);
 
 		if (!sourceDeckRadioButton.isEnabled() && !sourceInMoveRadioButton.isEnabled()
@@ -530,36 +535,34 @@ public class MainBoard {
 				marinesCheckBox.setSelected(false);
 				commanderCheckBox.setSelected(false);
 
-				marinesNumberSpinner.setModel(new SpinnerNumberModel(0, 0, game.getShipMarines(selectedShipID,
+				marinesNumberSpinner.setModel(new SpinnerNumberModel(0, 0, ship.getMarinesNumber(
 						game.getCurrentPlayer(), selectedMarinesSource, Commons.BOTH), 1));
 			}
 
-			if (game.getShipMarines(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.DECK, Commons.READY) > 0
-					|| game.getShipCommander(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.DECK) == CommanderState.READY
-					|| game.getShipMarines(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.INMOVE, Commons.READY) > 0
-					|| game.getShipCommander(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.INMOVE) == CommanderState.READY
-					|| game.getShipMarines(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) > 0
-					|| game.getShipCommander(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.BATTERIES) == CommanderState.READY) {
+			if (ship.getMarinesNumber(game.getCurrentPlayer(), MarinesCompartment.DECK, Commons.READY) > 0
+					|| ship.getCommanderState(game.getCurrentPlayer(), MarinesCompartment.DECK) == CommanderState.READY
+					|| ship.getMarinesNumber(game.getCurrentPlayer(), MarinesCompartment.INMOVE, Commons.READY) > 0
+					|| ship.getCommanderState(game.getCurrentPlayer(), MarinesCompartment.INMOVE) == CommanderState.READY
+					|| ship.getMarinesNumber(game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) > 0
+					|| ship.getCommanderState(game.getCurrentPlayer(), MarinesCompartment.BATTERIES) == CommanderState.READY) {
 
-				if (game.getShipMarines(selectedShipID, game.getCurrentPlayer(), selectedMarinesSource, Commons.READY) > 0) {
+				if (ship.getMarinesNumber(game.getCurrentPlayer(), selectedMarinesSource, Commons.READY) > 0) {
 					marinesCheckBox.setEnabled(true);
 
 					marinesNumberSpinner.setEnabled(true);
 				}
 
-				if (game.getShipCommander(selectedShipID, game.getCurrentPlayer(), selectedMarinesSource) == CommanderState.READY)
+				if (ship.getCommanderState(game.getCurrentPlayer(), selectedMarinesSource) == CommanderState.READY)
 					commanderCheckBox.setEnabled(true);
 			}
 
-			for (int sID = 0; sID < Commons.SHIPS_MAX; sID++) {
-				if (sID != selectedShipID && game.checkIfBoardable(selectedShipID, game.getCurrentPlayer(), sID))
-					destinationShipComboBox.addItem(sID + ", " + game.getShip(sID).getShipClass());
+			for (Ship s : game.getShips()) {
+				if (s != ship && Ships.checkIfBoardable(ship, game.getCurrentPlayer(), s))
+					destinationShipComboBox.addItem(s.getID() + ", " + s.getShipClass());
 			}
 
-			/**
-			 * #CLICK na destination-ship => ustawienie pierwszego dostepnego
-			 * pola w comboBox
-			 */
+			 // #CLICK na destination-ship => ustawienie pierwszego dostepnego
+			 // pola w comboBox
 
 			// 1.2.1
 			switch (selectedMarinesSource) {
@@ -583,7 +586,7 @@ public class MainBoard {
 			}
 
 			if (marinesCheckBox.isSelected()
-					&& (Integer) (marinesNumberSpinner.getValue()) > game.getShipMarines(selectedShipID,
+					&& (Integer) (marinesNumberSpinner.getValue()) > ship.getMarinesNumber(
 							game.getCurrentPlayer(), selectedMarinesSource, Commons.READY) && !commanderCheckBox.isSelected()) {
 				surrenderButton.setEnabled(true);
 
@@ -593,26 +596,28 @@ public class MainBoard {
 				destinationShipRadioButton.setEnabled(false);
 			} else if (marinesCheckBox.isSelected()
 					&& (Integer) (marinesNumberSpinner.getValue()) > 0
-					&& (Integer) (marinesNumberSpinner.getValue()) <= game.getShipMarines(selectedShipID,
+					&& (Integer) (marinesNumberSpinner.getValue()) <= ship.getMarinesNumber(
 							game.getCurrentPlayer(), selectedMarinesSource, Commons.READY) && !commanderCheckBox.isSelected())
 				surrenderButton.setEnabled(true);
 
 			if (marinesCheckBox.isSelected()
 					&& (Integer) (marinesNumberSpinner.getValue()) > 0
-					&& (Integer) (marinesNumberSpinner.getValue()) <= game.getShipMarines(selectedShipID,
+					&& (Integer) (marinesNumberSpinner.getValue()) <= ship.getMarinesNumber(
 							game.getCurrentPlayer(), selectedMarinesSource, Commons.READY) || commanderCheckBox.isSelected())
 				moveMarinesButton.setEnabled(true);
 
 			// par. 12.8.1
-			if (game.checkIfBoardingEscapePossible(selectedShipID, game.getCurrentPlayer()))
+			if (Ships.checkIfBoardingEscapePossible(ship, game.getCurrentPlayer()))
 				escapeButton.setEnabled(true);
 			// --
 		}
 
 		if (game.getStage() == Stage.BOARDING_ACTIONS
-				&& game.getShipBoardingActionUsed(selectedShipID, game.getCurrentPlayer(), selectedMarinesSource) == 0) {
-			String[] groups = game.getEnemyGroups(selectedShipID, game.getCurrentPlayer(), selectedMarinesSource)
-					.split("#");
+				&& ship.getBoardingActionUsed(game.getCurrentPlayer(),
+						selectedMarinesSource) == 0) {
+			
+			String[] groups = DataExtractors.getEnemyGroups(ship,
+					game.getPlayer(game.getCurrentPlayer()), selectedMarinesSource).split("#");
 			for (int i = 0; i < groups.length; i++) {
 				if (!groups[i].isEmpty())
 					enemyGroupComboBox.addItem(groups[i]);
@@ -623,13 +628,12 @@ public class MainBoard {
 		}
 
 		if (game.getStage() == Stage.BOARDING_SABOTAGE
-				&& (game.getGroupsNumber(selectedShipID, selectedMarinesSource) == 1
-						&& game.getShipMarines(selectedShipID, game.getCurrentPlayer(), selectedMarinesSource, Commons.BOTH) > 0
-						&& game.getShipBoardingActionUsed(selectedShipID, game.getCurrentPlayer(),
-								selectedMarinesSource) < 2 || game.getGroupsNumber(selectedShipID,
-						selectedMarinesSource) > 1
-						&& game.getShipMarines(selectedShipID, game.getCurrentPlayer(), selectedMarinesSource, Commons.BOTH) > 0
-						&& game.getShipBoardingActionUsed(selectedShipID, game.getCurrentPlayer(),
+				&& (Ships.getGroupsNumber(ship, selectedMarinesSource) == 1
+						&& ship.getMarinesNumber(game.getCurrentPlayer(), selectedMarinesSource, Commons.BOTH) > 0
+						&& ship.getBoardingActionUsed(game.getCurrentPlayer(),
+								selectedMarinesSource) < 2 || Ships.getGroupsNumber(ship, selectedMarinesSource) > 1
+						&& ship.getMarinesNumber(game.getCurrentPlayer(), selectedMarinesSource, Commons.BOTH) > 0
+						&& ship.getBoardingActionUsed(game.getCurrentPlayer(),
 								selectedMarinesSource) == 0)) {
 			// par. 12.2.3.2 (drugi z powyższych warunków)
 			sabotageButton.setEnabled(true);
@@ -676,15 +680,13 @@ public class MainBoard {
 		targetShipShootComboBox.setEnabled(false);
 		shootShootButton.setEnabled(false);
 
-		/**
-		 * zamiast mechanizmu doClick() konieczność "ręcznego" ustawiania
-		 * zaznaczonych przycisków
-		 */
+		 // zamiast mechanizmu doClick() konieczność "ręcznego" ustawiania
+		 // zaznaczonych przycisków
 
-		if (selectedShipID == null
-				|| !game.checkIfPlayerControlsLocation(selectedShipID, game.getCurrentPlayer(),
+		if (ship == null
+				|| !Ships.checkIfPlayerControlsLocation(ship, game.getCurrentPlayer(),
 						MarinesCompartment.BATTERIES, false) || game.getStage() != Stage.PLAYERS_MOVES
-				|| game.isShipActionsOver(selectedShipID) == Commons.ON) {
+				|| ship.isParameter(Parameter.ACTIONS_OVER)) {
 			// par. 12.6, 12.12
 			updateFinished = true;
 			return;
@@ -695,16 +697,16 @@ public class MainBoard {
 			if (comp == GunCompartment.NONE)
 				continue;
 
-			if ((game.getShipCannonsNumber(selectedShipID, comp, Gun.LIGHT, Commons.READY) > 0 && game.getShipMarines(
-					selectedShipID, game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.LIGHT.getCrewSize())
+			if ((ship.getCannonsNumber(comp, Gun.LIGHT, Commons.READY) > 0 && ship.getMarinesNumber(
+					game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.LIGHT.getCrewSize())
 					||
 
-					(game.getShipCannonsNumber(selectedShipID, comp, Gun.MEDIUM, Commons.READY) > 0 && game.getShipMarines(
-							selectedShipID, game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.MEDIUM.getCrewSize())
+					(ship.getCannonsNumber(comp, Gun.MEDIUM, Commons.READY) > 0 && ship.getMarinesNumber(
+							 game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.MEDIUM.getCrewSize())
 					||
 
-					(game.getShipCannonsNumber(selectedShipID, comp, Gun.HEAVY, Commons.READY) > 0 && game.getShipMarines(
-							selectedShipID, game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.HEAVY.getCrewSize())) {
+					(ship.getCannonsNumber(comp, Gun.HEAVY, Commons.READY) > 0 && ship.getMarinesNumber(
+							 game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.HEAVY.getCrewSize())) {
 				switch (comp) {
 				case BOW:
 					bowShootRadioButton.setEnabled(true);
@@ -777,16 +779,16 @@ public class MainBoard {
 
 		stillAvailable = false;
 
-		if (game.getShipCannonsNumber(selectedShipID, selectedCompartmentShoot, Gun.LIGHT, Commons.READY) > 0
-				&& game.getShipMarines(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.LIGHT.getCrewSize())
+		if (ship.getCannonsNumber(selectedCompartmentShoot, Gun.LIGHT, Commons.READY) > 0
+				&& ship.getMarinesNumber(game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.LIGHT.getCrewSize())
 			lightOwnShootRadioButton.setEnabled(true);
 
-		if (game.getShipCannonsNumber(selectedShipID, selectedCompartmentShoot, Gun.MEDIUM, Commons.READY) > 0
-				&& game.getShipMarines(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.MEDIUM.getCrewSize())
+		if (ship.getCannonsNumber(selectedCompartmentShoot, Gun.MEDIUM, Commons.READY) > 0
+				&& ship.getMarinesNumber(game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.MEDIUM.getCrewSize())
 			mediumOwnShootRadioButton.setEnabled(true);
 
-		if (game.getShipCannonsNumber(selectedShipID, selectedCompartmentShoot, Gun.HEAVY, Commons.READY) > 0
-				&& game.getShipMarines(selectedShipID, game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.HEAVY.getCrewSize())
+		if (ship.getCannonsNumber(selectedCompartmentShoot, Gun.HEAVY, Commons.READY) > 0
+				&& ship.getMarinesNumber(game.getCurrentPlayer(), MarinesCompartment.BATTERIES, Commons.READY) >= Gun.HEAVY.getCrewSize())
 			heavyOwnShootRadioButton.setEnabled(true);
 
 		// proba wyboru poprzedniego typu dziala
@@ -831,13 +833,13 @@ public class MainBoard {
 		stillAvailable = false;
 
 		targetShipShootComboBox.setEnabled(true);
-		for (int sID = 0; sID < Commons.SHIPS_MAX; sID++) {
-			int distance = Board.getDistance(game.getShip(selectedShipID).getPosition(), game.getShip(sID).getPosition());
+		for (Ship s : game.getShips()) {
+			int distance = Board.getDistance(ship.getPosition(), s.getPosition());
 			// par. 10.3
-			if (sID != selectedShipID && distance > 0 && distance <= selectedOwnTypeShoot.getRange()
-					&& game.calculateSourceGunCompartment(selectedShipID, sID) == selectedCompartmentShoot
-					&& !game.checkIfObstacleOnBulletPath(selectedShipID, sID, selectedOwnTypeShoot))
-				targetShipShootComboBox.addItem(sID + ", " + game.getShip(sID).getShipClass());
+			if (s != ship && distance > 0 && distance <= selectedOwnTypeShoot.getRange()
+					&& game.calculateSourceGunCompartment(ship.getID(), s.getID()) == selectedCompartmentShoot
+					&& !game.checkIfObstacleOnBulletPath(ship.getID(), s.getID(), selectedOwnTypeShoot))
+				targetShipShootComboBox.addItem(s.getCaption());
 			// --
 		}
 
@@ -849,14 +851,16 @@ public class MainBoard {
 		targetShipShootComboBox.setSelectedItem(previousTargetID);
 
 		targetID = extractIDFromObject(targetShipShootComboBox.getSelectedItem());
-		targetCompartment = game.calculateCompartmentToAim(targetID, selectedShipID);
+		Ship target = game.getShip(targetID);
 
-		if (game.getShipMast(targetID) > 0)
+		targetCompartment = Ships.calculateCompartmentToAim(target, ship);
+
+		if (target.getMast() > 0)
 			riggingShootRadioButton.setEnabled(true);
-
-		if (game.getShipCannonsNumber(targetID, targetCompartment, Gun.LIGHT, Commons.BOTH) > 0
-				|| game.getShipCannonsNumber(targetID, targetCompartment, Gun.MEDIUM, Commons.BOTH) > 0
-				|| game.getShipCannonsNumber(targetID, targetCompartment, Gun.HEAVY, Commons.BOTH) > 0)
+		
+		if (target.getCannonsNumber(targetCompartment, Gun.LIGHT, Commons.BOTH) > 0
+				|| target.getCannonsNumber(targetCompartment, Gun.MEDIUM, Commons.BOTH) > 0
+				|| target.getCannonsNumber(targetCompartment, Gun.HEAVY, Commons.BOTH) > 0)
 			cannonShootRadioButton.setEnabled(true);
 
 		hullShootRadioButton.setEnabled(true);
@@ -900,11 +904,11 @@ public class MainBoard {
 		stillAvailable = false;
 
 		if (selectedAimTypeShoot == AimPart.CANNON) {
-			if (game.getShipCannonsNumber(targetID, targetCompartment, Gun.LIGHT, Commons.BOTH) > 0)
+			if (target.getCannonsNumber(targetCompartment, Gun.LIGHT, Commons.BOTH) > 0)
 				lightAimedShootRadioButton.setEnabled(true);
-			if (game.getShipCannonsNumber(targetID, targetCompartment, Gun.MEDIUM, Commons.BOTH) > 0)
+			if (target.getCannonsNumber(targetCompartment, Gun.MEDIUM, Commons.BOTH) > 0)
 				mediumAimedShootRadioButton.setEnabled(true);
-			if (game.getShipCannonsNumber(targetID, targetCompartment, Gun.HEAVY, Commons.BOTH) > 0)
+			if (target.getCannonsNumber(targetCompartment, Gun.HEAVY, Commons.BOTH) > 0)
 				heavyAimedShootRadioButton.setEnabled(true);
 
 			switch (previousSelectedAimedTypeShoot) {
@@ -949,23 +953,26 @@ public class MainBoard {
 		shootShootButton.setEnabled(true);
 
 		updateFinished = true;
+		
 	}
 
 
 	private static void targetShipShootComboBoxActionPerformed(ActionEvent evt) {
 		if (updateFinished)
 			updateShootTab(UpdateMode.CONTINUE);
-		/** updateTargetShipShootGUI(); */
+		// updateTargetShipShootGUI();
 	}
 
 
 	private static void shootShootButtonActionPerformed(ActionEvent evt) {
 		int targetID = extractIDFromObject(targetShipShootComboBox.getSelectedItem());
+		Ship target = game.getShip(targetID);
 
-		game.shoot(selectedShipID, targetID, targetDistance, selectedCompartmentShoot, selectedOwnTypeShoot,
+		Ships.shoot(ship, target, targetDistance, selectedCompartmentShoot, selectedOwnTypeShoot,
 				selectedAimTypeShoot, selectedAimedTypeShoot);
 
-		setSelectedShip(selectedShipID, Tabs.SHOOT);
+		setSelectedShip(ship, Tabs.SHOOT);
+		
 	}
 
 
@@ -1029,13 +1036,13 @@ public class MainBoard {
 
 
 	private static void sabotageButtonActionPerformed(ActionEvent evt) {
-		game.setShipBoardingActionUsed(selectedShipID, game.getCurrentPlayer(), selectedMarinesSource, 2);
+/*		game.setShipBoardingActionUsed(selectedShipID, game.getCurrentPlayer(), selectedMarinesSource, 2);
 
 		if (selectedMarinesSource != MarinesCompartment.DECK)
 			sabotageUnderDeckDialog = new SabotageUnderDeckDialog(f);
 		else {
 			if (game.checkIfSabotageSuccessful(selectedShipID, game.getCurrentPlayer(), selectedMarinesSource)) {
-				if (game.getShip(selectedShipID).getTowedBy() == null && game.getShip(selectedShipID).getTowOther() == null)
+				if (ship.getTowedBy() == null && ship.getTowOther() == null)
 					game.destroyMast(selectedShipID, 1); // par. 12.2.3.3.1
 				else
 					game.throwTow(selectedShipID); // par. 12.2.3.3.2
@@ -1053,24 +1060,28 @@ public class MainBoard {
 		}
 
 		setSelectedShip(selectedShipID, Tabs.MARINES);
+		*/
 	}
 
 
 	private static void moveMarinesButtonActionPerformed(ActionEvent evt) {
+		Ship source = ship;
+		
 		if (selectedMarinesDestination != MarinesCompartment.SHIP_X) {
 			if (marinesCheckBox.isSelected())
-				game.moveMarines(selectedShipID, game.getCurrentPlayer(), (Integer) (marinesNumberSpinner.getValue()),
-						selectedMarinesSource, selectedMarinesDestination);
+				source.moveMarines(game.getCurrentPlayer(),
+						selectedMarinesSource, selectedMarinesDestination, (Integer) (marinesNumberSpinner.getValue()));
 			if (commanderCheckBox.isSelected())
-				game.moveCommander(selectedShipID, selectedMarinesSource, selectedMarinesDestination);
+				source.moveCommander(game.getCurrentPlayer(), selectedMarinesSource, selectedMarinesDestination);
 		} else {
 			int targetID = extractIDFromObject(destinationShipComboBox.getSelectedItem());
+			Ship target = game.getShip(targetID);
 
 			if (marinesCheckBox.isSelected())
-				game.moveMarinesShip(selectedShipID, targetID, game.getCurrentPlayer(),
+				Ships.moveMarinesShip(source, target, game.getCurrentPlayer(),
 						(Integer) (marinesNumberSpinner.getValue()));
 			if (commanderCheckBox.isSelected())
-				game.moveCommanderShip(selectedShipID, targetID, game.getCurrentPlayer());
+				Ships.moveCommanderShip(source, target);
 		}
 
 		updateMarinesTab(UpdateMode.DEFAULT);
@@ -1090,7 +1101,7 @@ public class MainBoard {
 
 
 	private static void attackButtonActionPerformed(ActionEvent evt) {
-		game.closeCombat(selectedShipID, game.getCurrentPlayer(), (String) (enemyGroupComboBox.getSelectedItem()),
+		Ships.closeCombat(ship, game.getCurrentPlayer(), (String) (enemyGroupComboBox.getSelectedItem()),
 				selectedMarinesSource);
 
 		updateMarinesTab(UpdateMode.DEFAULT);
@@ -1099,20 +1110,21 @@ public class MainBoard {
 
 
 	private static void surrenderButtonActionPerformed(ActionEvent evt) {
-		game.surrenderMarines(selectedShipID, selectedMarinesSource, (Integer) (marinesNumberSpinner.getValue()));
+		Ships.surrenderMarines(ship, selectedMarinesSource, (Integer) (marinesNumberSpinner.getValue()));
 
-		setSelectedShip(selectedShipID, Tabs.MARINES);
+		setSelectedShip(ship, Tabs.MARINES);
 	}
 
 
 	private static void escapeButtonActionPerformed(ActionEvent evt) {
-		/** dlaczego sprawdzanie warunku znalazlo sie tutaj?! */
-		if (game.checkIfBoardingEscapePossible(selectedShipID, game.getCurrentPlayer()))
-			game.boardingEscape(selectedShipID); // 12.8.3
+		// dlaczego sprawdzanie warunku znalazlo sie tutaj?!
+		if (Ships.checkIfBoardingEscapePossible(ship, game.getCurrentPlayer()))
+			Ships.boardingEscape(ship); // 12.8.3
 
 		updateMovementTab(UpdateMode.DEFAULT);
 		updateMarinesTab(UpdateMode.DEFAULT);
 		updateStatsTab();
+		
 	}
 
 
@@ -1146,53 +1158,59 @@ public class MainBoard {
 
 
 	private static void angleButtonActionPerformed(ActionEvent evt) {
-		game.rotateShip(selectedShipID, (Integer) (angleSpinner.getValue()));
+
+		Ships.rotateShip(ship, (Integer) (angleSpinner.getValue()));
 		boardPanel.repaint();
 
 		if (game.getStage() == Stage.DEPLOYMENT)
 			angleSpinner.setValue(0);
 		else {
 			SpinnerModel sm;
-			sm = new SpinnerNumberModel(0, game.checkAngleToRotate(selectedShipID).getA(), game.checkAngleToRotate(
-					selectedShipID).getB(), 1);
+			Range r = Ships.checkAngleToRotate(ship);
+			sm = new SpinnerNumberModel(0, r.getLowerBound(), r.getUpperBound(), 1);
 			angleSpinner.setModel(sm);
-			sm = new SpinnerNumberModel(0, 0, game.getDistanceToMove(selectedShipID), 1);
+			sm = new SpinnerNumberModel(0, 0, Ships.getDistanceToMove(ship), 1);
 			distanceSpinner.setModel(sm);
 		}
 
 		updateStatsTab();
+		
 	}
 
 
 	private static void distanceButtonActionPerformed(ActionEvent evt) {
-		game.moveShip(selectedShipID, (Integer) (distanceSpinner.getValue()));
+		Ships.moveShip(ship, (Integer) (distanceSpinner.getValue()));
 		boardPanel.repaint();
 
-		if (game.getShipParameter(selectedShipID, Parameter.IS_OUTSIDE_MAP) == Commons.OFF
-				&& game.getShipParameter(selectedShipID, Parameter.IS_SUNK) == Commons.OFF)
-			setSelectedShip(selectedShipID, Tabs.MOVEMENT);
+		if (Board.isOnMap(ship.getPosition())
+				&& !ship.isParameter(Parameter.IS_SUNK))
+			setSelectedShip(ship, Tabs.MOVEMENT);
 		else
 			setSelectedShip(null, Tabs.MOVEMENT);
 
 		updateStatsTab();
+		
 	}
 
 
 	private static void towButtonActionPerformed(ActionEvent evt) {
-		game.tow(selectedShipID, extractIDFromObject(towComboBox.getSelectedItem()));
+		Integer targetId = extractIDFromObject(towComboBox.getSelectedItem());
+		Ship target = game.getShip(targetId);
+		Ships.tow(ship, target);
 		updateMovementTab(UpdateMode.DEFAULT);
+		
 	}
 
 
 	private static void throwTowButtonActionPerformed(ActionEvent evt) {
-		game.throwTow(selectedShipID);
+		Ships.throwTow(ship);
 		towButton.setEnabled(true);
 
 		towComboBox.setEnabled(true);
 		towComboBox.removeAllItems();
-		for (int i = 0; i < Commons.SHIPS_MAX; i++) {
-			if (i != selectedShipID && game.checkIfTowable(selectedShipID, i)) {
-				towComboBox.addItem(i + ", " + game.getShip(i).getShipClass());
+		for (Ship s : game.getShips()) {
+			if (s != ship && Ships.checkIfTowable(ship, s)) {
+				towComboBox.addItem(s.getCaption());
 			}
 		}
 
@@ -1200,7 +1218,8 @@ public class MainBoard {
 			towButton.setEnabled(false);
 		throwTowButton.setEnabled(false);
 
-		setSelectedShip(selectedShipID, Tabs.MOVEMENT);
+		setSelectedShip(ship, Tabs.MOVEMENT);
+		
 	}
 
 
@@ -1213,12 +1232,13 @@ public class MainBoard {
 
 
 	private static boolean isTowOneAttemptPossible() {
-		if (selectedShipID == null || towComboBox.getItemCount() == 0)
+		if (ship == null || towComboBox.getItemCount() == 0)
 			return false;
 
 		int towedID = extractIDFromObject(towComboBox.getSelectedItem());
+		Ship towed = game.getShip(towedID);
 
-		if (game.checkIfEscapeAttemptPossible(selectedShipID, ShallowAttempt.TOW_BY_ONE, towedID))
+		if (Ships.checkIfEscapeAttemptPossible(ship, ShallowAttempt.TOW_BY_ONE, towed))
 			return true;
 		else
 			return false;
@@ -1244,13 +1264,15 @@ public class MainBoard {
 	private static void makeAttemptButtonActionPerformed(ActionEvent evt) {
 		if (selectedEscapeType == ShallowAttempt.TOW_BY_ONE) {
 			int towedID = extractIDFromObject(towComboBox.getSelectedItem());
+			Ship towed = game.getShip(towedID);
 
-			game.makeShallowEscapeAttempt(selectedShipID, selectedEscapeType, towedID);
-			game.tow(selectedShipID, towedID); // par. 17.11.2
+			Ships.makeShallowEscapeAttempt(ship, selectedEscapeType, towed);
+			Ships.tow(ship, towed); // par. 17.11.2
 		} else
-			game.makeShallowEscapeAttempt(selectedShipID, selectedEscapeType, null);
+			Ships.makeShallowEscapeAttempt(ship, selectedEscapeType, null);
 
-		setSelectedShip(selectedShipID, Tabs.MOVEMENT);
+		setSelectedShip(ship, Tabs.MOVEMENT);
+		
 	}
 
 
@@ -1267,9 +1289,7 @@ public class MainBoard {
 
 	@SuppressWarnings("serial")
 	private static void updateStatsTab() {
-		Integer ssid = selectedShipID;
-
-		if (ssid == null) {
+		if (ship == null) {
 			idStatsLabel.setText("ID: -");
 			ownerStatsLabel.setText("Owner: -");
 			classStatsLabel.setText("Class: -");
@@ -1299,13 +1319,13 @@ public class MainBoard {
 			cannonsAStatsTable.setModel(new javax.swing.table.DefaultTableModel(new Object[][] { { null, null, null,
 					null, null } }, new String[] { "BL", "BM", "LL", "LM", "LH" }) {
 
-				Class[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
+				Class<?>[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
 						java.lang.String.class, java.lang.String.class };
 				boolean[] canEdit = new boolean[] { false, false, false, false, false };
 
 
 				@Override
-				public Class getColumnClass(int columnIndex) {
+				public Class<?> getColumnClass(int columnIndex) {
 					return types[columnIndex];
 				}
 
@@ -1328,13 +1348,13 @@ public class MainBoard {
 			cannonsBStatsTable.setModel(new javax.swing.table.DefaultTableModel(new Object[][] { { null, null, null,
 					null, null } }, new String[] { "SL", "SM", "RL", "RM", "RH" }) {
 
-				Class[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
+				Class<?>[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
 						java.lang.String.class, java.lang.String.class };
 				boolean[] canEdit = new boolean[] { false, false, false, false, false };
 
 
 				@Override
-				public Class getColumnClass(int columnIndex) {
+				public Class<?> getColumnClass(int columnIndex) {
 					return types[columnIndex];
 				}
 
@@ -1358,13 +1378,13 @@ public class MainBoard {
 					{ null, null, null, null }, { null, null, null, null }, { null, null, null, null },
 					{ null, null, null, null } }, new String[] { "Pas", "Elm", "Sid", "Ple" }) {
 
-				Class[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
+				Class<?>[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
 						java.lang.String.class };
 				boolean[] canEdit = new boolean[] { false, false, false, false };
 
 
 				@Override
-				public Class getColumnClass(int columnIndex) {
+				public Class<?> getColumnClass(int columnIndex) {
 					return types[columnIndex];
 				}
 
@@ -1387,13 +1407,13 @@ public class MainBoard {
 					{ null, null, null, null }, { null, null, null, null }, { null, null, null, null },
 					{ null, null, null, null } }, new String[] { "Ham", "Dis", "Del", "Lep" }) {
 
-				Class[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
+				Class<?>[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
 						java.lang.String.class };
 				boolean[] canEdit = new boolean[] { false, false, false, false };
 
 
 				@Override
-				public Class getColumnClass(int columnIndex) {
+				public Class<?> getColumnClass(int columnIndex) {
 					return types[columnIndex];
 				}
 
@@ -1414,102 +1434,98 @@ public class MainBoard {
 			return;
 		}
 
-		idStatsLabel.setText("ID: " + ssid);
-		ownerStatsLabel.setText("Owner: " + game.getShipOwner(ssid).toString());
-		classStatsLabel.setText("Class: " + game.getShip(ssid).getShipClass().toString());
-		positionStatsLabel.setText("Position = [" + (game.getShipPosition(ssid).getA() + 1) + ","
-				+ (game.getShipPosition(ssid).getB() + 1) + "]");
-		rotationStatsLabel.setText("Rotation: " + game.getShipRotation(ssid).toString());
+		idStatsLabel.setText("ID: " + ship.getID());
+		ownerStatsLabel.setText("Owner: " + ship.getOwner().toString());
+		classStatsLabel.setText("Class: " + ship.getShipClass().toString());
+		positionStatsLabel.setText("Position = [" + (ship.getPosition().getA() + 1) + ","
+				+ (ship.getPosition().getB() + 1) + "]");
+		rotationStatsLabel.setText("Rotation: " + ship.getRotation().toString());
 
-		if (game.getShipMovesQueueCode(ssid) != MovesQueueCode.END)
+		if (ship.getMovesQueueCode() != MovesQueueCode.END)
 			moveOverStatsLabel.setText("MO: NO");
 		else
 			moveOverStatsLabel.setText("MO: YES");
 
-		if (game.isShipActionsOver(ssid) == Commons.OFF)
-			actionsOverStatsLabel.setText("Actions Over: NO");
-		else
+		if (ship.isParameter(Parameter.ACTIONS_OVER))
 			actionsOverStatsLabel.setText("Actions Over: YES");
-
-		hullStatsLabel.setText("Hull: " + game.getShipHull(ssid) + "/"
-				+ game.getShip(ssid).getShipClass().getDurabilityMax());
-		helmStatsLabel.setText("Helm: " + game.getShipHelm(ssid, Commons.READY) + "/" + game.getShipHelms(ssid));
-		mastStatsLabel.setText("Mo/Ma: " + game.getShipDistanceMoved(ssid) + "/" + game.getShipMast(ssid));
-
-		if (game.getShipParameter(ssid, Parameter.IS_WRECK) == Commons.OFF)
-			isWreckStatsLabel.setText("Wreck: NO");
 		else
-			isWreckStatsLabel.setText("Wreck: YES");
+			actionsOverStatsLabel.setText("Actions Over: NO");
 
-		if (game.getShipParameter(ssid, Parameter.IS_IMMOBILIZED) == Commons.OFF)
-			isImmobilizedStatsLabel.setText("Imm: NO");
-		else
-			isImmobilizedStatsLabel.setText("Imm: YES");
+		hullStatsLabel.setText("Hull: " + ship.getDurability() + "/"
+				+ ship.getShipClass().getDurabilityMax());
+		helmStatsLabel.setText("Helm: " + ship.getHelm(Commons.READY) + "/" + ship.getHelm(Commons.BOTH));
+		mastStatsLabel.setText("Mo/Ma: " + ship.getDistanceMoved() + "/" + ship.getMast());
 
-		if (game.getShipParameter(ssid, Parameter.IS_EXPLOSIVE) == Commons.OFF)
-			isExplosiveStatsLabel.setText("Bomb: NO");
-		else
-			isExplosiveStatsLabel.setText("Bomb: YES");
+		
+		String isWreck = ship.isParameter(Parameter.IS_WRECK) ? "YES" : "NO";
+			isWreckStatsLabel.setText("Wreck: " + isWreck);
 
-		if (game.getShip(ssid).getTowedBy() == null)
+			String isImmobilized = ship.isParameter(Parameter.IS_IMMOBILIZED) ? "YES" : "NO";
+			isWreckStatsLabel.setText("Imm: " + isImmobilized);
+
+			String isBomb = ship.isParameter(Parameter.IS_EXPLOSIVE) ? "YES" : "NO";
+			isWreckStatsLabel.setText("Bomb: " + isBomb);
+
+		if (ship.getTowedBy() == null)
 			tugStatsLabel.setText("Tug: -");
 		else
-			tugStatsLabel.setText("Tug: " + game.getShip(ssid).getTowedBy());
+			tugStatsLabel.setText("Tug: " + ship.getTowedBy());
 
-		if (game.getShip(ssid).getTowOther() == null)
+		if (ship.getTowOther() == null)
 			towedStatsLabel.setText("Towed: -");
 		else
-			towedStatsLabel.setText("Towed: " + game.getShip(ssid).getTowOther());
+			towedStatsLabel.setText("Towed: " + ship.getTowOther());
 
-		coupledStatsLabel.setText("Coupled: " + game.getShipCoupledString(ssid));
+		
+		coupledStatsLabel.setText("Coupled: " + DataExtractors.getShipCoupledString(ship));
 
-		silverLoadStatsLabel.setText("Silver: " + game.getShipLoad(ssid, CargoType.SILVER) + "t");
-		lightCannonsLoadStatsLabel.setText("Light: " + game.getShipLoad(ssid, CargoType.CANNONS_LIGHT));
-		mediumCannonsLoadStatsLabel.setText("Medium: " + game.getShipLoad(ssid, CargoType.CANNONS_MEDIUM));
+		silverLoadStatsLabel.setText("Silver: " + ship.getLoad(CargoType.SILVER) + "t");
+		lightCannonsLoadStatsLabel.setText("Light: " + ship.getLoad(CargoType.CANNONS_LIGHT));
+		mediumCannonsLoadStatsLabel.setText("Medium: " + ship.getLoad(CargoType.CANNONS_MEDIUM));
 
-		if (game.isShipBoardingFirstTurn(ssid) == BoardingFirstTurn.NO)
+		if (ship.isBoardingFirstTurn() == BoardingFirstTurn.NO)
 			bftStatsLabel.setText("BFT: NO");
 		else
 			bftStatsLabel.setText("BFT: YES");
 
-		if (!game.isShipTurnAttemptUsed(ssid))
-			teauStatsLabel.setText("TEAU: NO");
-		else
+		if (ship.isParameter(Parameter.TURN_ESCAPE_ATTEMPT_USED))
 			teauStatsLabel.setText("TEAU: YES");
+		else
+			teauStatsLabel.setText("TEAU: NO");
 
-		attemptsUsedStatsLabel.setText("AU: " + game.getShipAttemptsUsedString(ssid));
-		happinessStatsLabel.setText("Happiness: " + game.getShipHappiness(ssid));
+		attemptsUsedStatsLabel.setText("AU: " + DataExtractors.getShipAttemptsUsedString(ship));
+		happinessStatsLabel.setText("Happiness: " + ship.getHappiness());
 
-		if (!game.isShipHappinessSunk(ssid))
+		if (!ship.isHappinessFlagSet(Happiness.SUNK))
 			happinessSinkStatsLabel.setText("S: NO");
 		else
 			happinessSinkStatsLabel.setText("S: YES");
 
-		if (!game.isShipHappinessBoarding(ssid))
+		if (!ship.isHappinessFlagSet(Happiness.BOARDING))
 			happinessBoardingStatsLabel.setText("B: NO");
 		else
 			happinessBoardingStatsLabel.setText("B: YES");
 
 		cannonsAStatsTable.setModel(new javax.swing.table.DefaultTableModel(new Object[][] { {
-				game.getShipCannonsNumber(ssid, GunCompartment.BOW, Gun.LIGHT, Commons.READY) + "|"
-						+ game.getShipCannonsNumber(ssid, GunCompartment.BOW, Gun.LIGHT, Commons.USED),
-				game.getShipCannonsNumber(ssid, GunCompartment.BOW, Gun.MEDIUM, Commons.READY) + "|"
-						+ game.getShipCannonsNumber(ssid, GunCompartment.BOW, Gun.MEDIUM, Commons.USED),
-				game.getShipCannonsNumber(ssid, GunCompartment.SIDE_L, Gun.LIGHT, Commons.READY) + "|"
-						+ game.getShipCannonsNumber(ssid, GunCompartment.SIDE_L, Gun.LIGHT, Commons.USED),
-				game.getShipCannonsNumber(ssid, GunCompartment.SIDE_L, Gun.MEDIUM, Commons.READY) + "|"
-						+ game.getShipCannonsNumber(ssid, GunCompartment.SIDE_L, Gun.MEDIUM, Commons.USED),
-				game.getShipCannonsNumber(ssid, GunCompartment.SIDE_L, Gun.HEAVY, Commons.READY) + "|"
-						+ game.getShipCannonsNumber(ssid, GunCompartment.SIDE_L, Gun.HEAVY, Commons.USED) } },
+				ship.getCannonsNumber(GunCompartment.BOW, Gun.LIGHT, Commons.READY) + "|"
+						+ ship.getCannonsNumber(GunCompartment.BOW, Gun.LIGHT, Commons.USED),
+						ship.getCannonsNumber(GunCompartment.BOW, Gun.MEDIUM, Commons.READY) + "|"
+						+ ship.getCannonsNumber(GunCompartment.BOW, Gun.MEDIUM, Commons.USED),
+				ship.getCannonsNumber(GunCompartment.SIDE_L, Gun.LIGHT, Commons.READY) + "|"
+						+ ship.getCannonsNumber(GunCompartment.SIDE_L, Gun.LIGHT, Commons.USED),
+				ship.getCannonsNumber(GunCompartment.SIDE_L, Gun.MEDIUM, Commons.READY) + "|"
+						+ ship.getCannonsNumber(GunCompartment.SIDE_L, Gun.MEDIUM, Commons.USED),
+				ship.getCannonsNumber(GunCompartment.SIDE_L, Gun.HEAVY, Commons.READY) + "|"
+						+ ship.getCannonsNumber(GunCompartment.SIDE_L, Gun.HEAVY, Commons.USED) } },
 				new String[] { "BL", "BM", "LL", "LM", "LH" }) {
 
-			Class[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
+			Class<?>[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
 					java.lang.String.class, java.lang.String.class };
 			boolean[] canEdit = new boolean[] { false, false, false, false, false };
 
 
 			@Override
-			public Class getColumnClass(int columnIndex) {
+			public Class<?> getColumnClass(int columnIndex) {
 				return types[columnIndex];
 			}
 
@@ -1530,25 +1546,25 @@ public class MainBoard {
 		cannonsAStatsTable.setEnabled(false);
 
 		cannonsBStatsTable.setModel(new javax.swing.table.DefaultTableModel(new Object[][] { {
-				game.getShipCannonsNumber(ssid, GunCompartment.STERN, Gun.LIGHT, Commons.READY) + "|"
-						+ game.getShipCannonsNumber(ssid, GunCompartment.STERN, Gun.LIGHT, Commons.USED),
-				game.getShipCannonsNumber(ssid, GunCompartment.STERN, Gun.MEDIUM, Commons.READY) + "|"
-						+ game.getShipCannonsNumber(ssid, GunCompartment.STERN, Gun.MEDIUM, Commons.USED),
-				game.getShipCannonsNumber(ssid, GunCompartment.SIDE_R, Gun.LIGHT, Commons.READY) + "|"
-						+ game.getShipCannonsNumber(ssid, GunCompartment.SIDE_R, Gun.LIGHT, Commons.USED),
-				game.getShipCannonsNumber(ssid, GunCompartment.SIDE_R, Gun.MEDIUM, Commons.READY) + "|"
-						+ game.getShipCannonsNumber(ssid, GunCompartment.SIDE_R, Gun.MEDIUM, Commons.USED),
-				game.getShipCannonsNumber(ssid, GunCompartment.SIDE_R, Gun.HEAVY, Commons.READY) + "|"
-						+ game.getShipCannonsNumber(ssid, GunCompartment.SIDE_R, Gun.HEAVY, Commons.USED) } },
+				ship.getCannonsNumber(GunCompartment.STERN, Gun.LIGHT, Commons.READY) + "|"
+						+ ship.getCannonsNumber(GunCompartment.STERN, Gun.LIGHT, Commons.USED),
+				ship.getCannonsNumber(GunCompartment.STERN, Gun.MEDIUM, Commons.READY) + "|"
+						+ ship.getCannonsNumber(GunCompartment.STERN, Gun.MEDIUM, Commons.USED),
+				ship.getCannonsNumber(GunCompartment.SIDE_R, Gun.LIGHT, Commons.READY) + "|"
+						+ ship.getCannonsNumber(GunCompartment.SIDE_R, Gun.LIGHT, Commons.USED),
+				ship.getCannonsNumber(GunCompartment.SIDE_R, Gun.MEDIUM, Commons.READY) + "|"
+						+ ship.getCannonsNumber(GunCompartment.SIDE_R, Gun.MEDIUM, Commons.USED),
+				ship.getCannonsNumber(GunCompartment.SIDE_R, Gun.HEAVY, Commons.READY) + "|"
+						+ ship.getCannonsNumber(GunCompartment.SIDE_R, Gun.HEAVY, Commons.USED) } },
 				new String[] { "SL", "SM", "RL", "RM", "RH" }) {
 
-			Class[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
+			Class<?>[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
 					java.lang.String.class, java.lang.String.class };
 			boolean[] canEdit = new boolean[] { false, false, false, false, false };
 
 
 			@Override
-			public Class getColumnClass(int columnIndex) {
+			public Class<?> getColumnClass(int columnIndex) {
 				return types[columnIndex];
 			}
 
@@ -1568,16 +1584,16 @@ public class MainBoard {
 		cannonsBStatsTable.getColumnModel().getColumn(4).setResizable(false);
 		cannonsBStatsTable.setEnabled(false);
 
-		marinesAStatsTable.setModel(new javax.swing.table.DefaultTableModel(game.getShipMarinesArray(ssid, 0),
+		marinesAStatsTable.setModel(new javax.swing.table.DefaultTableModel(DataExtractors.getShipMarinesArray(ship, 0),
 				new String[] { "Pas", "Elm", "Sid", "Ple" }) {
 
-			Class[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
+			Class<?>[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
 					java.lang.String.class };
 			boolean[] canEdit = new boolean[] { false, false, false, false };
 
 
 			@Override
-			public Class getColumnClass(int columnIndex) {
+			public Class<?> getColumnClass(int columnIndex) {
 				return types[columnIndex];
 			}
 
@@ -1596,16 +1612,16 @@ public class MainBoard {
 		marinesAStatsTable.getColumnModel().getColumn(3).setResizable(false);
 		marinesAStatsTable.setEnabled(false);
 
-		marinesBStatsTable.setModel(new javax.swing.table.DefaultTableModel(game.getShipMarinesArray(ssid, 1),
+		marinesBStatsTable.setModel(new javax.swing.table.DefaultTableModel(DataExtractors.getShipMarinesArray(ship, 1),
 				new String[] { "Ham", "Dis", "Del", "Lep" }) {
 
-			Class[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
+			Class<?>[] types = new Class[] { java.lang.String.class, java.lang.String.class, java.lang.String.class,
 					java.lang.String.class };
 			boolean[] canEdit = new boolean[] { false, false, false, false };
 
 
 			@Override
-			public Class getColumnClass(int columnIndex) {
+			public Class<?> getColumnClass(int columnIndex) {
 				return types[columnIndex];
 			}
 
@@ -1623,6 +1639,7 @@ public class MainBoard {
 		marinesBStatsTable.getColumnModel().getColumn(2).setResizable(false);
 		marinesBStatsTable.getColumnModel().getColumn(3).setResizable(false);
 		marinesBStatsTable.setEnabled(false);
+		
 	}
 
 
@@ -1658,10 +1675,10 @@ public class MainBoard {
 		targetSternCargoRadioButton.setEnabled(false);
 
 		quantityCargoSpinner.setEnabled(false);
-
-		if (selectedShipID == null || game.getStage() != Stage.PLAYERS_MOVES
-				|| game.getShip(selectedShipID).getPlayerMarinesOnShip(game.getCurrentPlayer(), false) == 0
-				|| game.checkIfShipBoarded(selectedShipID, game.getCurrentPlayer())) {
+		
+		if (ship == null || game.getStage() != Stage.PLAYERS_MOVES
+				|| ship.getPlayerMarinesOnShip(game.getCurrentPlayer(), false) == 0
+				|| Ships.checkIfShipBoarded(ship, game.getCurrentPlayer())) {
 			updateFinished = true;
 			previousShip = null;
 			return;
@@ -1669,10 +1686,10 @@ public class MainBoard {
 
 		shipCargoComboBox.removeAllItems();
 		// par. 2.1 (nie mozna dokonywac przeladunku dzial miedzy przedzialami)
-		for (int i = 0; i < Commons.SHIPS_MAX; i++) {
-			if (i != selectedShipID
-					&& game.checkIfHandleable(selectedShipID, game.getCurrentPlayer(), i) != HandlingPartner.NONE)
-				shipCargoComboBox.addItem(i + ", " + game.getShip(i).getShipClass());
+		for (Ship s : game.getShips()) {
+			if (s != ship
+					&& Ships.checkIfHandleable(ship, game.getCurrentPlayer(), s) != HandlingPartner.NONE)
+				shipCargoComboBox.addItem(s.getID() + ", " + s.getShipClass());
 		}
 		// --
 
@@ -1807,12 +1824,14 @@ public class MainBoard {
 		// selectedCargoTypeCargo
 		SpinnerModel sm;
 		if (currentShipID != null) {
+			Ship currentShip = game.getShip(currentShipID);
+			
 			if (selectedCargoTypeCargo == CargoType.SILVER)
-				sm = new SpinnerNumberModel(0, 0, game.checkMaxQuantityToHandle(selectedShipID, currentShipID,
+				sm = new SpinnerNumberModel(0, 0, Ships.checkMaxQuantityToHandle(ship, currentShip,
 						selectedFromDestinationCargo, selectedToDestinationCargo, selectedCargoTypeCargo,
 						selectedSourceGunCompartmentCargo, selectedTargetGunCompartmentCargo), 10);
 			else
-				sm = new SpinnerNumberModel(0, 0, game.checkMaxQuantityToHandle(selectedShipID, currentShipID,
+				sm = new SpinnerNumberModel(0, 0, Ships.checkMaxQuantityToHandle(ship, currentShip,
 						selectedFromDestinationCargo, selectedToDestinationCargo, selectedCargoTypeCargo,
 						selectedSourceGunCompartmentCargo, selectedTargetGunCompartmentCargo), 1);
 		} else
@@ -1820,14 +1839,14 @@ public class MainBoard {
 
 		quantityCargoSpinner.setModel(sm);
 
-		if (game.checkIfHandleUncouplePossible(selectedShipID, currentShipID))
+		if (Ships.checkIfHandleUncouplePossible(ship, game.getShip(currentShipID)))
 			uncoupleCargoButton.setEnabled(true);
 		else
 			uncoupleCargoButton.setEnabled(false);
 
 		previousShip = shipCargoComboBox.getSelectedItem();
 
-		if (game.checkIfSetExplosivesPossible(selectedShipID, game.getCurrentPlayer()))
+		if (Ships.checkIfSetExplosivesPossible(ship, game.getCurrentPlayer()))
 			setExplosivesCargoButton.setEnabled(true);
 
 		updateFinished = true;
@@ -1918,7 +1937,9 @@ public class MainBoard {
 	private static void handleCargoButtonActionPerformed(ActionEvent evt) {
 		int targetID = extractIDFromObject(shipCargoComboBox.getSelectedItem());
 
-		game.handle(selectedShipID, targetID, game.getCurrentPlayer(), selectedFromDestinationCargo,
+		Ship target = game.getShip(targetID);
+		
+		Ships.handle(ship, target, game.getCurrentPlayer(), selectedFromDestinationCargo,
 				selectedToDestinationCargo, selectedCargoTypeCargo, selectedSourceGunCompartmentCargo,
 				selectedTargetGunCompartmentCargo, (Integer) (quantityCargoSpinner.getValue()));
 
@@ -1929,36 +1950,41 @@ public class MainBoard {
 
 
 	private static void uncoupleCargoButtonActionPerformed(ActionEvent evt) {
-		game.endHandling(selectedShipID, extractIDFromObject(shipCargoComboBox.getSelectedItem()));
-		setSelectedShip(selectedShipID, Tabs.HANDLE);
+		Integer targetID = extractIDFromObject(shipCargoComboBox.getSelectedItem());
+		Ships.endHandling(ship, game.getShip(targetID));
+		setSelectedShip(ship, Tabs.HANDLE); 
 	}
 
 
 	private static void shipCargoComboBoxActionPerformed(ActionEvent evt) {
 		if (shipCargoComboBox.getItemCount() > 0) {
-			handlingPartner = game.checkIfHandleable(selectedShipID, game.getCurrentPlayer(),
-					extractIDFromObject(shipCargoComboBox.getSelectedItem()));
+			Integer targetId = extractIDFromObject(shipCargoComboBox.getSelectedItem());
+			Ship target = game.getShip(targetId);
+			
+			handlingPartner = Ships.checkIfHandleable(ship, game.getCurrentPlayer(),
+					target);
 		} else
 			handlingPartner = HandlingPartner.NONE;
 
 		if (updateFinished)
 			updateCargoTab(UpdateMode.DEFAULT);
+			
 	}
 
 
 	private static void quantityCargoNumberChanged(ChangeEvent evt) {
-		/*
-		 * if ((Integer)(quantityCargoSpinner.getValue()) == 0)
-		 * handleCargoButton.setEnabled(false); else
-		 * handleCargoButton.setEnabled(true);
-		 */
+		
+		 if ((Integer)(quantityCargoSpinner.getValue()) == 0)
+		  handleCargoButton.setEnabled(false); else
+		  handleCargoButton.setEnabled(true);
+		 
 		if (updateFinished)
 			updateCargoTab(UpdateMode.DEFAULT);
 	}
 
 
-	private static void setExplosivesCargoButtonActionPerformed(ActionEvent evt) {
-		game.setExplosivesShip(selectedShipID);
+private static void setExplosivesCargoButtonActionPerformed(ActionEvent evt) {
+//		game.setExplosivesShip(selectedShipID);
 		updateCargoTab(UpdateMode.CONTINUE);
 		updateStatsTab();
 	}
@@ -1966,13 +1992,13 @@ public class MainBoard {
 
 	private static void useHappinessButtonActionPerformed(ActionEvent evt) {
 		happinessAction = HappinessAction.AGAIN;
-		/** Game.cancelTimer(); */
+		// XXX: Game.cancelTimer();
 	}
 
 
 	private static void acceptRollButtonActionPerformed(ActionEvent evt) {
 		happinessAction = HappinessAction.ACCEPT;
-		/** Game.cancelTimer(); */
+		// XXX: Game.cancelTimer();
 	}
 
 
@@ -1996,8 +2022,9 @@ public class MainBoard {
 			if (p == Player.NONE)
 				continue;
 			if (command.equals(p.name())) {
-				game.reversePlayerAlly(game.getCurrentPlayer(), p);
-				game.reversePlayerAlly(p, game.getCurrentPlayer());
+				// FIXME: gracz przestaje byc sojusznikiem
+//				game.reversePlayerAlly(game.getCurrentPlayer(), p);
+//				game.reversePlayerAlly(p, game.getCurrentPlayer()); 
 			}
 		}
 
@@ -2093,16 +2120,6 @@ public class MainBoard {
 	public void paint(Graphics g) {
 	}
 
-
-	/**
-	 * TEST KLAWISZY public void keyPressed(KeyEvent e) { int code =
-	 * e.getKeyCode(); switch (code) { case KeyEvent.VK_C:
-	 * System.out.print("'C' pressed!\n"); break; } }
-	 * 
-	 * public void keyReleased(KeyEvent e) {} public void keyTyped(KeyEvent e)
-	 * {} /
-	 **/
-
 	public MainBoard() {
 	}
 
@@ -2130,7 +2147,7 @@ public class MainBoard {
 				switchStageDisplayMode(DisplayMode.DEPLOY_MODE);
 				game.init();
 
-				addComponentsToPane(/** f.getContentPane(); */
+				addComponentsToPane(
 				);
 
 				// endTurnButtonActionPerformed(null);
@@ -2156,7 +2173,7 @@ public class MainBoard {
 	}
 
 
-	public static void addComponentsToPane(/** Container pane */
+	public static void addComponentsToPane(
 	) {
 		Container pane = f.getContentPane();
 		pane.setLayout(new GridBagLayout());
@@ -2252,8 +2269,8 @@ public class MainBoard {
 		updateCargoTab(UpdateMode.DEFAULT);
 		updateStatsTab();
 
-		betweenTurnsDialog.update(UpdateMode.DEFAULT);
-		/** uaktualnienie wszystkich elementow */
+//		betweenTurnsDialog.update(UpdateMode.DEFAULT);
+		// uaktualnienie wszystkich elementow
 
 		JOptionPane.showMessageDialog(f, "Game loaded!");
 	}
@@ -2346,7 +2363,12 @@ public class MainBoard {
 		headerPanel.add(headerLabel, BorderLayout.EAST);
 		makeHeaderLabel();
 
-		boardPanel = new BoardPanel();
+		try {
+			boardPanel = new BoardPanel();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
 		cornerPanel = new JPanel();
 		cornerPanel.setMaximumSize(new Dimension(225, 120));
@@ -2429,7 +2451,7 @@ public class MainBoard {
 		scrollPane = new JScrollPane(messageBox);
 		scrollPane.setPreferredSize(new Dimension(750, 100));
 
-		/* Tabbed Pane - Actions */
+		// Tabbed Pane - Actions
 		ImageIcon icon;
 		SpinnerModel sm = new SpinnerNumberModel(0, 0, 0, 0);
 
@@ -2438,7 +2460,7 @@ public class MainBoard {
 		tabbedPane.addChangeListener(new ChangeListener() {
 
 			public void stateChanged(ChangeEvent evt) {
-				/** TODO here */
+				// TODO here
 
 				JTabbedPane pane = (JTabbedPane) evt.getSource();
 				int sel = pane.getSelectedIndex();
@@ -2505,7 +2527,7 @@ public class MainBoard {
 		angleSpinner = new JSpinner(sm);
 		distanceSpinner = new JSpinner(sm);
 
-		towComboBox = new JComboBox();
+		towComboBox = new JComboBox<String>();
 		towComboBox.addActionListener(new ActionListener() {
 
 			public void actionPerformed(ActionEvent evt) {
@@ -2881,7 +2903,7 @@ public class MainBoard {
 			}
 		});
 
-		destinationShipComboBox = new JComboBox();
+		destinationShipComboBox = new JComboBox<String>();
 
 		destinationMarinesGroup = new ButtonGroup();
 		destinationMarinesGroup.add(destinationDeckRadioButton);
@@ -2909,7 +2931,7 @@ public class MainBoard {
 
 		enemyGroupLabel = new JLabel("Group:");
 
-		enemyGroupComboBox = new JComboBox();
+		enemyGroupComboBox = new JComboBox<String>();
 
 		attackButton = new JButton("Attack");
 		attackButton.addActionListener(new ActionListener() {
@@ -3306,7 +3328,7 @@ public class MainBoard {
 		shootSeparator2 = new JSeparator();
 		shootSeparator3 = new JSeparator();
 
-		targetShipShootComboBox = new JComboBox();
+		targetShipShootComboBox = new JComboBox<String>();
 		targetShipShootComboBox.addActionListener(new ActionListener() {
 
 			public void actionPerformed(ActionEvent evt) {
@@ -3528,7 +3550,7 @@ public class MainBoard {
 		targetCompartmentCargoLabel = new JLabel("Target comp:");
 		quantityCargoLabel = new JLabel("Quantity:");
 
-		shipCargoComboBox = new JComboBox();
+		shipCargoComboBox = new JComboBox<String>();
 		shipCargoComboBox.addActionListener(new ActionListener() {
 
 			public void actionPerformed(ActionEvent evt) {
@@ -4235,9 +4257,8 @@ public class MainBoard {
 		// The following line enables to use scrolling tabs.
 		tabbedPane.setTabLayoutPolicy(JTabbedPane.SCROLL_TAB_LAYOUT);
 
-		/* End of Tabbed Pane creation */
+		// End of Tabbed Pane creation
 
-		/** addComponentsToPane(f.getContentPane()); */
 		f.pack();
 		f.setVisible(true);
 
@@ -4478,11 +4499,11 @@ public class MainBoard {
 		str += blankStr.substring(0, 5);
 
 		str += "Selected ship: ";
-		if (selectedShipID == null)
+		if (ship == null)
 			str += "none";
 		else {
-			str += blankStr.substring(0, 2 - String.valueOf(selectedShipID).length());
-			str += selectedShipID;
+			str += blankStr.substring(0, 2 - String.valueOf(ship.getID()).length());
+			str += ship.getID();
 			str += "   ";
 		}
 
@@ -4493,7 +4514,8 @@ public class MainBoard {
 	// ---- DEPLOYER's METHODS
 
 	public static boolean isSelectable(int shipID) {
-		if (game.getShipOwner(shipID) != game.getCurrentPlayer())
+		Ship s = game.getShip(shipID);
+		if (s.getOwner() != game.getCurrentPlayer())
 			return false;
 		else
 			return true;
@@ -4501,24 +4523,26 @@ public class MainBoard {
 
 
 	public static boolean isDeployable(int shipID, Coordinate hexCoord) {
-		Hex hex = game.board.getHex(hexCoord);
-		if (game.getShipOwner(shipID) == Player.PASADENA || game.getShipOwner(shipID) == Player.SIDONIA
-				|| game.getShipOwner(shipID) == Player.ELMETH || game.getShipOwner(shipID) == Player.PLEENSY) {
-			if (game.getShipOwner(shipID) != hex.owner)
+		Ship s = game.getShip(shipID);
+
+		Hex hex = game.getBoard().getHex(hexCoord);
+		if (s.getOwner() == Player.PASADENA || s.getOwner() == Player.SIDONIA
+				|| s.getOwner() == Player.ELMETH || s.getOwner() == Player.PLEENSY) {
+			if (s.getOwner() != hex.owner)
 				return false;
 		}
 		// par. 6.2
 		else {
-			if (!game.checkIfAlly(game.getShipOwner(shipID), hex.owner))
+			if (!game.checkIfAlly(s.getOwner(), hex.owner))
 				return false;
 		}
 		// --
 
 		// umieszczenie dowodcy na okrecie po dwukrotnym zaznaczeniu statku
 		if (hex.terrain == Terrain.ISLAND || hex.ship != null) {
-			if (hex.ship == boardPanel.getClipBoardShip()) {
-				game.deployCommander(boardPanel.getClipBoardShip());
-			}
+			if (hex.ship.getID() == boardPanel.getClipBoardShip()) {
+				Ships.deployCommander(game.getShip(boardPanel.getClipBoardShip()));
+			} 
 			return false;
 		}
 
@@ -4527,7 +4551,9 @@ public class MainBoard {
 
 
 	public static void moveShipToPosition(int shipID, Coordinate hex) {
-		game.setShipPosition(shipID, new Coordinate(hex.getA(), hex.getB()));
+		// XXX: nie trzeba usuwac z obecnej pozycji?
+		Ship s = game.getShip(shipID);
+		s.setPosition(hex.getA(), hex.getB());
 	}
 
 
@@ -4544,12 +4570,8 @@ public class MainBoard {
 	}
 }
 
+@SuppressWarnings("serial")
 class CenteredCellRenderer extends DefaultTableCellRenderer {
-
-	/**
-	 * 
-	 */
-	private static final long serialVersionUID = 1L;
 
 	@Override
 	public void setValue(Object value) {

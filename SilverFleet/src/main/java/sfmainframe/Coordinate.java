@@ -13,6 +13,10 @@ public final class Coordinate {
         B = b;
     }
 
+    public Coordinate(Coordinate c) {
+    	this(c.A, c.B);
+    }
+
 
     public void set(int a, int b) {
         A = a;

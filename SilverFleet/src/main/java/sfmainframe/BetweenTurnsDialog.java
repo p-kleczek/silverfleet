@@ -51,6 +51,7 @@ public class BetweenTurnsDialog extends JPanel {
 			{ "RIGHT SIDE", "0|0", "0|0", "0|0" }, { "STERN", "0|0", "0|0", "0|0" } }, new String[] { "Compartment",
 			"Light", "Medium", "Heavy" });	
 	
+	/*
 	// private JFrame f;
 	private JTabbedPane tabbedPane;
 
@@ -111,12 +112,10 @@ public class BetweenTurnsDialog extends JPanel {
 			transferCannonsToButtonGroup, sellCannonsButtonGroup;
 
 	private Player currentPlayer = Player.NONE;
-	private PlayerClass pl = new PlayerClass();
+	private PlayerClass pl = null;
 
 	private Ship sh = MainBoard.game.getShip(0);
-	/** test */
 	private Ship sh2 = MainBoard.game.getShip(1);
-	/** test */
 
 	private RepairType selectedRepairType = RepairType.DURABILITY;
 
@@ -156,7 +155,6 @@ public class BetweenTurnsDialog extends JPanel {
 	private JPanel summaryPanel;
 
 	private JButton nextPlayerButton;
-	/** cos w stylu "End turn" */
 	private JButton passButton; // zrezygnowanie z kolejnych tur
 
 	private JLabel currentPlayerLabel;
@@ -201,7 +199,7 @@ public class BetweenTurnsDialog extends JPanel {
 
 
 	private void sellSilverButtonActionPerformed(ActionEvent evt) {
-		MainBoard.game.sellSilver(currentPlayer, (Integer) (sellSilverSpinner.getValue()));
+		MainBoard.game.getPlayer(currentPlayer).sellSilver((Integer) (sellSilverSpinner.getValue()));
 
 		updatePlayer();
 
@@ -266,7 +264,7 @@ public class BetweenTurnsDialog extends JPanel {
 
 
 	private void buyFoundryButtonActionPerformed(ActionEvent evt) {
-		MainBoard.game.buyFoundry(currentPlayer);
+		MainBoard.game.getPlayer(currentPlayer).buyFoundry();
 
 		updateRepairSection(UpdateMode.RADIO_BUTTONS);
 		updateShipyardAndFoundrySection();
@@ -304,7 +302,7 @@ public class BetweenTurnsDialog extends JPanel {
 		Object selected = sellShipComboBox.getSelectedItem();
 		int selectedID = extractIDFromObject(selected);
 
-		MainBoard.game.sellShip(currentPlayer, selectedID);
+		MainBoard.game.sellShip(currentPlayer, MainBoard.game.getShip(selectedID));
 
 		updateRepairSection(UpdateMode.RADIO_BUTTONS);
 		updateShipyardAndFoundrySection();
@@ -322,17 +320,16 @@ public class BetweenTurnsDialog extends JPanel {
 		else
 			hireMarinesButton.setEnabled(true);
 
-		/**
-		 * to sie powinno dac jakos ladnie zapisac (teraz zdarzenie /chyba/ nie
-		 * jest wyzwalane przy wpisywaniu recznym
-		 */
+//		  to sie powinno dac jakos ladnie zapisac (teraz zdarzenie /chyba/ nie
+//		  jest wyzwalane przy wpisywaniu recznym
+		 
 		if ((Integer) (hireMarinesNumberSpinner.getValue()) > pl.getGold())
 			hireMarinesNumberSpinner.setModel(new SpinnerNumberModel(pl.getGold() - 1, 0, pl.getGold(), 1));
 	}
 
 
 	private void hireMarinesButtonActionPerformed(ActionEvent evt) {
-		MainBoard.game.hireMarines(currentPlayer, (Integer) (hireMarinesNumberSpinner.getValue()));
+		MainBoard.game.getPlayer(currentPlayer).hireMarines((Integer) (hireMarinesNumberSpinner.getValue()));
 
 		updateRepairSection(UpdateMode.RADIO_BUTTONS);
 		updateShipyardAndFoundrySection();
@@ -586,11 +583,9 @@ public class BetweenTurnsDialog extends JPanel {
 		// --
 
 		if (rv == JOptionPane.YES_OPTION) {
-			/**
 			 * Rozwiazanie z odpowidzią bezposrednią jest tymczasowe. Docelowo
 			 * powinno się ukazywać osobne okienko z pełnymi statystykami
 			 * kontraktu.
-			 */
 
 			Object[] shipList;
 			int[] shipArrayA, shipArrayB;
@@ -961,7 +956,7 @@ public class BetweenTurnsDialog extends JPanel {
 	private void updateCannonsSection() {
 		updateFinished = false;
 
-		/** TODO (wszystko ;) */
+		// TODO (wszystko ;)
 
 		sellCannonsSpinner.setModel(new SpinnerNumberModel(0, 0, pl.getCannons(selectedSellCannonType), 1));
 		sellCannonsButton.setEnabled(false);
@@ -1073,11 +1068,10 @@ public class BetweenTurnsDialog extends JPanel {
 		// --
 
 		partnerShipsContractList.setModel(listModel);
-		/*
 		 * partnerShipsContractList.setSelectionMode(ListSelectionModel.
 		 * MULTIPLE_INTERVAL_SELECTION);
 		 * partnerShipsContractList.setVisibleRowCount(4);
-		 */
+		 
 
 		myLightContractSpinner.setModel(new SpinnerNumberModel(0, 0, me.getCannons(Gun.LIGHT), 1));
 		myMediumContractSpinner.setModel(new SpinnerNumberModel(0, 0, me.getCannons(Gun.MEDIUM), 1));
@@ -1203,7 +1197,6 @@ public class BetweenTurnsDialog extends JPanel {
 	 * if (purchaseShipClassBankComboBox.getItemCount() == 0)
 	 * purchaseShipBankButton.setEnabled(false); else
 	 * purchaseShipBankButton.setEnabled(true); }
-	 */
 
 	public void update(UpdateMode mode) {
 		updatePlayer();
@@ -1258,7 +1251,7 @@ public class BetweenTurnsDialog extends JPanel {
 
 	private void init() {
 
-		/** TEST */
+		/** TEST 
 		// currentPlayer = Player.PASADENA;
 		// updatePlayer();
 
@@ -1269,13 +1262,11 @@ public class BetweenTurnsDialog extends JPanel {
 		tabbedPane.addChangeListener(new ChangeListener() {
 
 			public void stateChanged(ChangeEvent evt) {
-				/** TODO here */
+				// TODO here
 
 				JTabbedPane pane = (JTabbedPane) evt.getSource();
-				/**
 				 * int sel = pane.getSelectedIndex(); if (sel ==
 				 * Tabs.SHOOT.ordinal()) { updateShootTab(); }
-				 */
 			}
 		});
 
@@ -1604,7 +1595,6 @@ public class BetweenTurnsDialog extends JPanel {
 										 * String[] strings = { "Item 1",
 										 * "Item 2", "Item 3", "Item 4",
 										 * "Item 5"};
-										 */
 
 
 			public int getSize() {
@@ -3831,4 +3821,5 @@ public class BetweenTurnsDialog extends JPanel {
 
 		updateFinished = true;
 	}
+	*/
 }

@@ -11,10 +11,10 @@ import java.util.Set;
 
 import sfmainframe.Commons;
 import sfmainframe.Coordinate;
-import sfmainframe.MainBoard;
 import sfmainframe.Player;
 import sfmainframe.Range;
 import sfmainframe.ReusableElement;
+import sfmainframe.board.Board;
 import sfmainframe.board.RotateDirection;
 import sfmainframe.gameplay.KillingMode;
 import sfmainframe.gameplay.MovementType;
@@ -166,7 +166,7 @@ public class Ship {
         shipClass = _class;
         internedBy = Player.NONE;
 
-        position = Coordinate.dummy;
+        position = new Coordinate(Coordinate.dummy);
         rotation = RotateDirection.N;
         movesQueueCode = MovesQueueCode.NEW;
 
@@ -210,6 +210,7 @@ public class Ship {
     }
 
 
+    // XXX: konstruktory kopiujące?
     public Ship(Ship ship) {
         id = ship.id;
         owner = ship.owner;
@@ -217,7 +218,7 @@ public class Ship {
         shipClass = ship.shipClass;
         internedBy = ship.internedBy;
 
-        position = ship.position;
+        position = new Coordinate(ship.position);
         rotation = ship.rotation;
         movesQueueCode = ship.movesQueueCode;
 
@@ -402,7 +403,7 @@ public class Ship {
         case Commons.BOTH:
             return helm.getTotal();
         default:
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("no such state exception");
         }
     }
 
@@ -519,7 +520,6 @@ public class Ship {
 
 
     public void destroyMast(int value) {
-        MainBoard.addMessage("Ship #" + id + ": " + Math.min(5, mast) + " speed points lost.\n");
         mast = Math.max(0, mast - value);
     }
 
@@ -707,7 +707,7 @@ public class Ship {
     public int escapeFromBoarding() {
         // shipsCoupled.clear();
         // TODO: wtf?
-        return Commons.NIL;
+    	throw new UnsupportedOperationException("not yet implemented");
     }
 
 
@@ -947,6 +947,7 @@ public class Ship {
     }
 
 
+    // TODO: usunąc parametry
     public Range checkAngleToRotate(RotateDirection towedByRotation, RotateDirection towOtherRotation) {
         /*
          * Funkcja zwraca maksymalny możliwy zakres obrotu statku.
@@ -962,7 +963,9 @@ public class Ship {
             return new Range(0, 0);
         // --
 
-        if (isParameter(Parameter.IS_WRECK) || towedByRotation != null) {
+        // XXX: o co tu chodzi? w tym "!= null"?
+//        if (isParameter(Parameter.IS_WRECK) || towedByRotation != null) {
+        if (isParameter(Parameter.IS_WRECK)) {
             return new Range(0, 0);
         }
 
@@ -971,14 +974,16 @@ public class Ship {
 
         if (getTowOther() != null) {
             // par. 16.8
-            Range range = new Range(-Math.min(1, helm.getReady()), Math.min(1, getHelm(helm.getReady())));
+            Range range = new Range(-Math.min(1, helm.getReady()), Math.min(1, helm.getReady()));
             // --
 
             // par. 8.5.3
-            if (RotateDirection.rotate(getRotation(), -4) == towOtherRotation)
+            RotateDirection nextLeft = RotateDirection.rotate(getRotation(), -1);
+            if (Board.getNextHexCoords(position, nextLeft).equals(getTowOther().position))
                 range.setLowerBound(0);
-
-            if (RotateDirection.rotate(getRotation(), +4) == towOtherRotation)
+            
+            RotateDirection nextRight = RotateDirection.rotate(getRotation(), 1);
+            if (Board.getNextHexCoords(position, nextRight).equals(getTowOther().position))
                 range.setUpperBound(0);
             // --
 
@@ -1041,4 +1046,7 @@ public class Ship {
         return price;
     }
 
+    public String getCaption() { 
+    	return String.format("%d, %s", id, shipClass);
+    }
 }

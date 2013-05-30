@@ -460,7 +460,7 @@ public class PlayerClass {
     }
 
 
-    public void hireMarines(Player player, int number) {
+    public void hireMarines(int number) {
         addMarines(number);
         removeGold(number);
     }
@@ -478,7 +478,7 @@ public class PlayerClass {
     }
 
 
-    public void sellSilver(Player player, int amount) {
+    public void sellSilver(int amount) {
         removeSilver(amount);
         addGold(amount * getCurrentSilverPrice());
     }

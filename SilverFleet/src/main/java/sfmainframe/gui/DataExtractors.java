@@ -1,5 +1,7 @@
 package sfmainframe.gui;
 
+import java.util.Iterator;
+import java.util.Set;
 import java.util.Vector;
 
 import sfmainframe.Commons;
@@ -117,21 +119,22 @@ public final class DataExtractors {
 	}
 
 
-	public String getShipCoupledString(Ship ship) {
+	public static String getShipCoupledString(Ship ship) {
 		/*
 		 * funkcja sluzaca do przeslania niezbednych danych do tworzenia GUI
 		 * (sczepione statki w zakladce statystyk)
 		 */
 
 		String str = "";
-		Vector<Integer> set = ship.getShipsCoupled();
-		Object[] arr = set.toArray();
-		for (int i = 0; i < arr.length; i++) {
-			str += String.valueOf(arr[i]);
-			if (i < arr.length - 1)
-				str += ",";
+		Set<Ship> set = ship.getShipsCoupled().keySet();
+		Iterator<Ship> it = set.iterator();
+		
+		while (it.hasNext()) {
+			Ship s = (Ship) it.next();
+			str += String.valueOf(s.getID()) + ",";
 		}
-
+		str = str.substring(0, str.length());
+		
 		if (str.length() > 0)
 			return str;
 		else

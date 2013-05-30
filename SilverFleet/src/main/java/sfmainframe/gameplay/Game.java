@@ -5,6 +5,7 @@ import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -751,7 +752,8 @@ public class Game {
                         auctions.add(new Auction(auctionsCounter, 0, s, s.getShipClass(), (Integer) (priceSpinner
                                 .getValue())));
                         auctionsCounter++;
-                    } else /* CANCEL_OPTION */{
+                    } else {
+                    	// CANCEL_OPTION
                         sinkShip(s, DestroyShipMode.SINK);
                         addShipToBank(ShipClass.NONE); // par. 5.6.6
                     }
@@ -781,7 +783,8 @@ public class Game {
         NextPlayerState st = determineNextPlayer(null);
 
         if (st == NextPlayerState.NEXT_PLAYER) {
-            MainBoard.betweenTurnsDialog.update(UpdateMode.DEFAULT);
+        	// FIXME: uncomment
+//            MainBoard.betweenTurnsDialog.update(UpdateMode.DEFAULT);
             MainBoard.addComponentsToPane();
             return;
         } else if (st == NextPlayerState.LAST_PLAYER) {
@@ -938,6 +941,10 @@ public class Game {
                 return s;
 
         throw new NoSuchElementException();
+    }
+    
+    public Collection<Ship> getShips() {
+    	return ships;
     }
 
 
@@ -1311,8 +1318,6 @@ public class Game {
             _clientB.setCommanderInternedBy(Player.NONE);
     }
 
-
-    /* obsluga operacji miedzy rozgrywkami */
 
     public void repairShip(Player player, int shipID, RepairType repairType, int points) {
         switch (repairType) {

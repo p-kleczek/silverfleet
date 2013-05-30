@@ -24,11 +24,7 @@ import sfmainframe.ship.Gun;
 import sfmainframe.ship.GunCompartment;
 
 public class SabotageUnderDeckDialog extends JDialog {
-    /**
-     * 
-     */
-    private static final long serialVersionUID = 1L;
-    
+/*    
     JFrame frame;
     JLabel gunCompartmentLabel, gunTypeLabel;
     JRadioButton bowRadioButton, sideLeftRadioButton,
@@ -88,9 +84,9 @@ public class SabotageUnderDeckDialog extends JDialog {
 	c.gridx = 1; c.gridy = 3;
 	pane.add(heavyCannonRadioButton, c);
 
-/*	    c.gridx = 1; c.gridy = 4;
-	pane.add(sternRadioButton, c);
-*/
+//	    c.gridx = 1; c.gridy = 4;
+//	pane.add(sternRadioButton, c);
+
 	c.gridx = 1; c.gridy = 5;
 	c.insets = new Insets(20,0,0,10);
 	c.anchor = GridBagConstraints.CENTER;
@@ -373,4 +369,5 @@ public class SabotageUnderDeckDialog extends JDialog {
 	    dispose();
 	}
     }
+    */
 }
